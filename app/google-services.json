@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1015582532839",
+    "project_id": "smartattendance-c0491",
+    "storage_bucket": "smartattendance-c0491.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1015582532839:android:6d76dcb5f6453234006e42",
+        "android_client_info": {
+          "package_name": "dev.ml.smartattendance"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDT0tqhuElUhJPy_rHWhnh18o5jn6mxM4A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
