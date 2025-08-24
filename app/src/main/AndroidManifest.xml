@@ -50,16 +50,24 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SmartAttendance">
         <activity
-            android:name=".MainActivity"
+            android:name=".presentation.screen.SplashActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.SmartAttendance">
+            android:theme="@style/Theme.SmartAttendance.Splash"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.SmartAttendance"
+            android:screenOrientation="portrait" />
         
         <provider
             android:name="androidx.core.content.FileProvider"

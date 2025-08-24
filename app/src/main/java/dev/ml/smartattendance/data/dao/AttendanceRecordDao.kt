@@ -14,6 +14,16 @@ interface AttendanceRecordDao {
     @Query("SELECT * FROM attendance_records WHERE studentId = :studentId ORDER BY timestamp DESC")
     suspend fun getAttendanceByStudentId(studentId: String): List<AttendanceRecord>
     
+    @Query("""
+        SELECT ar.*, s.name as studentName, s.course as studentCourse, e.name as eventName 
+        FROM attendance_records ar 
+        JOIN students s ON ar.studentId = s.id 
+        JOIN events e ON ar.eventId = e.id 
+        WHERE ar.studentId = :studentId 
+        ORDER BY ar.timestamp DESC
+    """)
+    suspend fun getDetailedAttendanceByStudentId(studentId: String): List<DetailedAttendanceRecord>
+    
     @Query("SELECT * FROM attendance_records WHERE eventId = :eventId ORDER BY timestamp ASC")
     suspend fun getAttendanceByEventId(eventId: String): List<AttendanceRecord>
     

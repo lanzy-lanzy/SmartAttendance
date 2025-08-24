@@ -3,6 +3,7 @@ package dev.ml.smartattendance.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.ml.smartattendance.data.entity.Event
 import dev.ml.smartattendance.domain.model.LatLng
 import dev.ml.smartattendance.domain.service.FirestoreService
 import dev.ml.smartattendance.domain.usecase.CreateEventUseCase
@@ -94,7 +95,11 @@ class EventManagementViewModel @Inject constructor(
         endTime: Long,
         latitude: Double,
         longitude: Double,
-        radius: Float = 50f
+        radius: Float = 50f,
+        signInStartOffset: Long = -15,
+        signInEndOffset: Long = 30,
+        signOutStartOffset: Long = -30,
+        signOutEndOffset: Long = 15
     ) {
         viewModelScope.launch {
             _state.value = _state.value.copy(
@@ -110,7 +115,11 @@ class EventManagementViewModel @Inject constructor(
                 startTime = startTime,
                 endTime = endTime,
                 location = location,
-                geofenceRadius = radius
+                geofenceRadius = radius,
+                signInStartOffset = signInStartOffset,
+                signInEndOffset = signInEndOffset,
+                signOutStartOffset = signOutStartOffset,
+                signOutEndOffset = signOutEndOffset
             )) {
                 is CreateEventUseCase.EventCreationResult.Success -> {
                     _state.value = _state.value.copy(
@@ -127,6 +136,76 @@ class EventManagementViewModel @Inject constructor(
                         error = result.message
                     )
                 }
+            }
+        }
+    }
+    
+    fun updateEvent(event: Event) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(
+                isCreating = true,
+                creationMessage = null,
+                error = null
+            )
+            
+            try {
+                val success = firestoreService.updateEvent(event)
+                
+                if (success) {
+                    _state.value = _state.value.copy(
+                        isCreating = false,
+                        creationMessage = "Event updated successfully!",
+                        error = null
+                    )
+                    loadEvents() // Refresh the list
+                } else {
+                    _state.value = _state.value.copy(
+                        isCreating = false,
+                        creationMessage = null,
+                        error = "Failed to update event"
+                    )
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    isCreating = false,
+                    creationMessage = null,
+                    error = "Error updating event: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    fun deleteEvent(eventId: String) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(
+                isLoading = true,
+                creationMessage = null,
+                error = null
+            )
+            
+            try {
+                val success = firestoreService.deleteEvent(eventId)
+                
+                if (success) {
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        creationMessage = "Event deleted successfully!",
+                        error = null
+                    )
+                    loadEvents() // Refresh the list
+                } else {
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        creationMessage = null,
+                        error = "Failed to delete event"
+                    )
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    creationMessage = null,
+                    error = "Error deleting event: ${e.message}"
+                )
             }
         }
     }

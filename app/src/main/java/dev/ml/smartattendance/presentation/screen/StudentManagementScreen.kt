@@ -1,21 +1,27 @@
 package dev.ml.smartattendance.presentation.screen
 
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.ml.smartattendance.data.entity.Student
 import dev.ml.smartattendance.presentation.viewmodel.StudentManagementViewModel
+import dev.ml.smartattendance.ui.components.*
+import dev.ml.smartattendance.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentManagementScreen(
     onNavigateBack: () -> Unit,
@@ -24,7 +30,30 @@ fun StudentManagementScreen(
     val state by viewModel.state.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     
+    // Animation states
+    var startAnimations by remember { mutableStateOf(false) }
+    
+    val headerAlpha by animateFloatAsState(
+        targetValue = if (startAnimations) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 800,
+            easing = EaseOutCubic
+        ),
+        label = "headerAlpha"
+    )
+    
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (startAnimations) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 800,
+            delayMillis = 300,
+            easing = EaseOutCubic
+        ),
+        label = "contentAlpha"
+    )
+    
     LaunchedEffect(Unit) {
+        startAnimations = true
         viewModel.loadStudents()
     }
     
@@ -38,20 +67,22 @@ fun StudentManagementScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Student Management") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            ModernTopAppBar(
+                title = "Student Management",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onNavigateBack,
                 actions = {
                     IconButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Student")
+                        Icon(
+                            Icons.Default.Add, 
+                            contentDescription = "Add Student",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier

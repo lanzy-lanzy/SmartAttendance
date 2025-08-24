@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 interface AttendanceRepository {
     fun getAllAttendanceRecords(): Flow<List<AttendanceRecord>>
     suspend fun getAttendanceByStudentId(studentId: String): List<AttendanceRecord>
+    suspend fun getDetailedAttendanceByStudentId(studentId: String): List<DetailedAttendanceRecord>
     suspend fun getAttendanceByEventId(eventId: String): List<AttendanceRecord>
     suspend fun getAttendanceRecord(studentId: String, eventId: String): AttendanceRecord?
     suspend fun getUnsyncedRecords(): List<AttendanceRecord>

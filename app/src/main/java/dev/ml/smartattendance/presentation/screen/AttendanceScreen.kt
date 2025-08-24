@@ -1,12 +1,17 @@
 package dev.ml.smartattendance.presentation.screen
 
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -20,10 +25,11 @@ import android.Manifest
 import android.content.pm.PackageManager
 import dev.ml.smartattendance.presentation.viewmodel.AttendanceViewModel
 import dev.ml.smartattendance.ui.theme.LocalFragmentActivity
+import dev.ml.smartattendance.ui.components.*
+import dev.ml.smartattendance.ui.theme.*
 import android.content.Context
 import android.content.ContextWrapper
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AttendanceScreen(
     eventId: String,
@@ -33,7 +39,30 @@ fun AttendanceScreen(
 ) {
     val state by viewModel.state.collectAsState()
     
+    // Animation states
+    var startAnimations by remember { mutableStateOf(false) }
+    
+    val headerAlpha by animateFloatAsState(
+        targetValue = if (startAnimations) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 800,
+            easing = EaseOutCubic
+        ),
+        label = "headerAlpha"
+    )
+    
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (startAnimations) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 800,
+            delayMillis = 300,
+            easing = EaseOutCubic
+        ),
+        label = "contentAlpha"
+    )
+    
     LaunchedEffect(Unit) {
+        startAnimations = true
         viewModel.loadCurrentEvents()
     }
     
@@ -47,15 +76,13 @@ fun AttendanceScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Mark Attendance") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
+            ModernTopAppBar(
+                title = "Mark Attendance",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onNavigateBack
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier

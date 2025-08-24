@@ -28,13 +28,7 @@ abstract class DatabaseModule {
         @Provides
         @Singleton
         fun provideDatabase(@ApplicationContext context: Context): SmartAttendanceDatabase {
-            return Room.databaseBuilder(
-                context.applicationContext,
-                SmartAttendanceDatabase::class.java,
-                "smart_attendance_database"
-            )
-            .fallbackToDestructiveMigration()
-            .build()
+            return SmartAttendanceDatabase.getDatabase(context)
         }
         
         @Provides

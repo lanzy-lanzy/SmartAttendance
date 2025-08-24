@@ -23,37 +23,30 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun DashboardScreen(
-    userRole: UserRole,
-    onNavigateToStudentManagement: () -> Unit = {},
-    onNavigateToEventManagement: () -> Unit = {},
-    onNavigateToAttendance: (String) -> Unit = {},
-    onNavigateToAdminDashboard: () -> Unit = {},
+fun EventsScreen(
+    onNavigateBack: () -> Unit = {},
     onNavigateToAttendanceHistory: () -> Unit = {},
-    onNavigateToEvents: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onNavigateToAttendanceMarking: (String) -> Unit = {},
     viewModel: AttendanceViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
     
     // Load events on composition
     LaunchedEffect(Unit) {
-        if (userRole == UserRole.ADMIN) {
-            onNavigateToAdminDashboard()
-        }
         viewModel.loadCurrentEvents()
     }
     
     Scaffold(
         topBar = {
             CleanTopAppBar(
-                title = if (userRole == UserRole.STUDENT) "Dashboard" else "SmartAttendance",
-                onNavigateBack = { /* Dashboard doesn't need back navigation */ },
+                title = "Events",
+                onNavigateBack = onNavigateBack,
                 actions = {
-                    IconButton(onClick = { /* TODO: Profile/Settings */ }) {
+                    IconButton(onClick = { /* TODO: Search/Filter */ }) {
                         Icon(
-                            Icons.Default.Person,
-                            contentDescription = "Profile",
+                            Icons.Default.Search,
+                            contentDescription = "Search",
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -61,28 +54,18 @@ fun DashboardScreen(
             )
         },
         bottomBar = {
-            if (userRole == UserRole.STUDENT) {
-                ModernBottomNavigation(
-                    currentRoute = "dashboard",
-                    userRole = UserRole.STUDENT,
-                    onNavigate = { route ->
-                        when (route) {
-                            "dashboard" -> {
-                                // Already on dashboard
-                            }
-                            "attendance_history" -> {
-                                onNavigateToAttendanceHistory()
-                            }
-                            "events" -> {
-                                onNavigateToEvents()
-                            }
-                            "profile" -> {
-                                onNavigateToProfile()
-                            }
-                        }
+            ModernBottomNavigation(
+                currentRoute = "events",
+                userRole = UserRole.STUDENT,
+                onNavigate = { route ->
+                    when (route) {
+                        "dashboard" -> onNavigateBack()
+                        "attendance_history" -> onNavigateToAttendanceHistory()
+                        "events" -> { /* Already here */ }
+                        "profile" -> onNavigateToProfile()
                     }
-                )
-            }
+                }
+            )
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
@@ -91,7 +74,7 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Clean Welcome Header
+            // Clean Header
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.primary,
@@ -103,7 +86,7 @@ fun DashboardScreen(
                         .padding(20.dp)
                 ) {
                     Text(
-                        text = if (userRole == UserRole.ADMIN) "Admin Dashboard" else "Welcome Back!",
+                        text = "All Events",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimary
@@ -112,10 +95,7 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(4.dp))
                     
                     Text(
-                        text = if (userRole == UserRole.ADMIN) 
-                            "Manage events and monitor attendance" 
-                        else 
-                            "Select an event to mark your attendance",
+                        text = "View and mark attendance for available events",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
                     )
@@ -127,49 +107,68 @@ fun DashboardScreen(
                     .fillMaxSize()
                     .padding(20.dp)
             ) {
-                // Today's Summary for Students
-                if (userRole == UserRole.STUDENT) {
+                // Summary Card
+                if (state.currentEvents.isNotEmpty()) {
                     val currentTime = System.currentTimeMillis()
-                    val todayEvents = state.currentEvents.filter { event ->
-                        val eventDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(event.startTime))
-                        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(currentTime))
-                        eventDate == today
+                    val upcomingEvents = state.currentEvents.filter { it.startTime > currentTime }
+                    val ongoingEvents = state.currentEvents.filter { 
+                        it.startTime <= currentTime && it.endTime >= currentTime 
                     }
                     
-                    SummaryCard(
-                        title = "Today's Events",
-                        count = todayEvents.size,
-                        subtitle = if (todayEvents.isEmpty()) "No events scheduled" else "events available",
-                        icon = Icons.Default.Event
-                    )
+                    ModernCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            StatItem(
+                                title = "Total Events",
+                                value = state.currentEvents.size.toString(),
+                                icon = Icons.Default.Event
+                            )
+                            
+                            StatItem(
+                                title = "Ongoing",
+                                value = ongoingEvents.size.toString(),
+                                icon = Icons.Default.PlayArrow
+                            )
+                            
+                            StatItem(
+                                title = "Upcoming",
+                                value = upcomingEvents.size.toString(),
+                                icon = Icons.Default.Schedule
+                            )
+                        }
+                    }
                     
                     Spacer(modifier = Modifier.height(20.dp))
                 }
                 
-                // Available Events Section
+                // Events List Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (userRole == UserRole.STUDENT) "Available Events" else "Current Events",
+                        text = "Available Events",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     
-                    if (userRole == UserRole.ADMIN) {
+                    if (state.currentEvents.isNotEmpty()) {
                         TextButton(
-                            onClick = onNavigateToEventManagement
+                            onClick = { viewModel.loadCurrentEvents() }
                         ) {
-                            Text("Manage")
-                            Spacer(modifier = Modifier.width(4.dp))
                             Icon(
-                                Icons.Default.ArrowForward,
+                                Icons.Default.Refresh,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Refresh")
                         }
                     }
                 }
@@ -178,30 +177,20 @@ fun DashboardScreen(
                 
                 // Events List
                 if (state.currentEvents.isEmpty()) {
-                    CleanEmptyEventsCard(userRole = userRole)
+                    EmptyEventsCard()
                 } else {
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(state.currentEvents) { event ->
-                            CleanEventCard(
+                            EventCard(
                                 event = event,
-                                userRole = userRole,
-                                onMarkAttendance = { onNavigateToAttendance(event.id) },
+                                onMarkAttendance = { onNavigateToAttendanceMarking(event.id) },
                                 isLoading = state.isMarkingAttendance,
                                 isAttendanceMarked = state.markedEventIds.contains(event.id)
                             )
                         }
                     }
-                }
-                
-                // Success Message
-                state.attendanceMessage?.let { message ->
-                    Spacer(modifier = Modifier.height(16.dp))
-                    AlertCard(
-                        message = message,
-                        type = AlertType.Success
-                    )
                 }
                 
                 // Error handling
@@ -218,58 +207,7 @@ fun DashboardScreen(
 }
 
 @Composable
-fun SummaryCard(
-    title: String,
-    count: Int,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
-    ModernCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
-            )
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        text = count.toString(),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    
-                    Spacer(modifier = Modifier.width(4.dp))
-                    
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun CleanEmptyEventsCard(userRole: UserRole) {
+fun EmptyEventsCard() {
     ModernCard(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -297,10 +235,7 @@ fun CleanEmptyEventsCard(userRole: UserRole) {
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = if (userRole == UserRole.ADMIN) 
-                    "Create your first event to get started" 
-                else 
-                    "No events are currently scheduled for attendance",
+                text = "No events are currently scheduled for attendance",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -310,9 +245,8 @@ fun CleanEmptyEventsCard(userRole: UserRole) {
 }
 
 @Composable
-fun CleanEventCard(
+fun EventCard(
     event: Event,
-    userRole: UserRole,
     onMarkAttendance: () -> Unit,
     isLoading: Boolean = false,
     isAttendanceMarked: Boolean = false
@@ -331,11 +265,17 @@ fun CleanEventCard(
     
     // For demo/testing: Allow attendance marking for any active event
     // In production, you would use: currentTime >= signInStartTime && currentTime <= signInEndTime
-    val canMarkAttendance = userRole == UserRole.STUDENT && isEventActive
+    val canMarkAttendance = isEventActive
     
     // Show timing information based on actual event configuration
     val attendanceWindowStart = signInStartTime
     val attendanceWindowEnd = signInEndTime
+    
+    val eventStatus = when {
+        currentTime < event.startTime -> "Upcoming"
+        currentTime >= event.startTime && currentTime <= event.endTime -> "Ongoing"
+        else -> "Ended"
+    }
     
     ModernCard(
         modifier = Modifier.fillMaxWidth()
@@ -367,18 +307,20 @@ fun CleanEventCard(
                 // Event Status Badge
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = if (isEventActive) 
-                        MaterialTheme.colorScheme.primaryContainer 
-                    else 
-                        MaterialTheme.colorScheme.surfaceVariant
+                    color = when (eventStatus) {
+                        "Ongoing" -> MaterialTheme.colorScheme.primaryContainer
+                        "Upcoming" -> MaterialTheme.colorScheme.tertiaryContainer
+                        else -> MaterialTheme.colorScheme.surfaceVariant
+                    }
                 ) {
                     Text(
-                        text = if (isEventActive) "Active" else "Ended",
+                        text = eventStatus,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isEventActive) 
-                            MaterialTheme.colorScheme.onPrimaryContainer 
-                        else 
-                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = when (eventStatus) {
+                            "Ongoing" -> MaterialTheme.colorScheme.onPrimaryContainer
+                            "Upcoming" -> MaterialTheme.colorScheme.onTertiaryContainer
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
@@ -403,70 +345,66 @@ fun CleanEventCard(
                 )
             }
             
-            // Attendance Window Info for Students
-            if (userRole == UserRole.STUDENT) {
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    text = "Attendance: ${timeFormat.format(Date(attendanceWindowStart))} - ${timeFormat.format(Date(attendanceWindowEnd))}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium
-                )
-            }
+            // Attendance Window Info
+            Spacer(modifier = Modifier.height(8.dp))
             
-            // Action Button for Students
-            if (userRole == UserRole.STUDENT) {
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Button(
-                    onClick = onMarkAttendance,
-                    enabled = canMarkAttendance && !isLoading && !isAttendanceMarked,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isAttendanceMarked) 
-                            MaterialTheme.colorScheme.surfaceVariant 
-                        else 
-                            MaterialTheme.colorScheme.primary,
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+            Text(
+                text = "Attendance: ${timeFormat.format(Date(attendanceWindowStart))} - ${timeFormat.format(Date(attendanceWindowEnd))}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Medium
+            )
+            
+            // Action Button
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Button(
+                onClick = onMarkAttendance,
+                enabled = canMarkAttendance && !isLoading && !isAttendanceMarked,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isAttendanceMarked) 
+                        MaterialTheme.colorScheme.surfaceVariant 
+                    else 
+                        MaterialTheme.colorScheme.primary,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Processing...")
-                    } else {
-                        Icon(
-                            imageVector = if (isAttendanceMarked) 
-                                Icons.Default.CheckCircle 
-                            else 
-                                Icons.Default.Fingerprint,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = when {
-                                isAttendanceMarked -> "Already Marked"
-                                !isEventActive -> "Event Ended"
-                                canMarkAttendance -> "Mark Attendance"
-                                currentTime < attendanceWindowStart -> {
-                                    val minutesUntil = (attendanceWindowStart - currentTime) / (60 * 1000)
-                                    "Available in ${minutesUntil}min"
-                                }
-                                currentTime > attendanceWindowEnd -> "Sign-in Window Closed"
-                                else -> "Mark Attendance" // Fallback to allow marking
-                            },
-                            color = if (isAttendanceMarked) 
-                                MaterialTheme.colorScheme.onSurfaceVariant 
-                            else 
-                                MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Processing...")
+                } else {
+                    Icon(
+                        imageVector = if (isAttendanceMarked) 
+                            Icons.Default.CheckCircle 
+                        else 
+                            Icons.Default.Fingerprint,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = when {
+                            isAttendanceMarked -> "Already Marked"
+                            !isEventActive -> "Event Ended"
+                            canMarkAttendance -> "Mark Attendance"
+                            currentTime < attendanceWindowStart -> {
+                                val minutesUntil = (attendanceWindowStart - currentTime) / (60 * 1000)
+                                "Available in ${minutesUntil}min"
+                            }
+                            currentTime > attendanceWindowEnd -> "Sign-in Window Closed"
+                            else -> "Mark Attendance" // Fallback to allow marking
+                        },
+                        color = if (isAttendanceMarked) 
+                            MaterialTheme.colorScheme.onSurfaceVariant 
+                        else 
+                            MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
         }

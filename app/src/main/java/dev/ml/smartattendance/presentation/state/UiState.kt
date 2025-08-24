@@ -13,6 +13,7 @@ data class AuthState(
 
 data class AttendanceState(
     val currentEvents: List<Event> = emptyList(),
+    val markedEventIds: Set<String> = emptySet(), // Track which events have been marked
     val isMarkingAttendance: Boolean = false,
     val attendanceMessage: String? = null,
     val error: String? = null

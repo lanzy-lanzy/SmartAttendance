@@ -115,13 +115,22 @@ fun SmartAttendanceNavigation(
                 },
                 onNavigateToAttendance = { eventId ->
                     if (role == UserRole.STUDENT) {
-                        navController.navigate(Screen.Attendance.createRoute(eventId))
+                        navController.navigate(Screen.AttendanceMarking.createRoute(eventId))
                     }
                 },
                 onNavigateToAdminDashboard = {
                     if (role == UserRole.ADMIN) {
                         navController.navigate(Screen.AdminDashboard.route)
                     }
+                },
+                onNavigateToAttendanceHistory = {
+                    navController.navigate(Screen.AttendanceHistory.route)
+                },
+                onNavigateToEvents = {
+                    navController.navigate(Screen.Events.route)
+                },
+                onNavigateToProfile = {
+                    navController.navigate(Screen.Profile.route)
                 }
             )
         }
@@ -137,6 +146,25 @@ fun SmartAttendanceNavigation(
                     navController.popBackStack()
                 }
             )
+        }
+        
+        composable(Screen.AttendanceMarking.route) { backStackEntry ->
+            val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
+            val role = currentUserRole ?: UserRole.STUDENT
+            
+            // Only allow students to access this screen
+            if (role == UserRole.STUDENT) {
+                AttendanceMarkingScreen(
+                    eventId = eventId,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    },
+                    onAttendanceMarked = {
+                        // Navigate back to dashboard after successful attendance marking
+                        navController.popBackStack(Screen.Dashboard.route, false)
+                    }
+                )
+            }
         }
         
         composable(Screen.StudentManagement.route) {
@@ -205,6 +233,73 @@ fun SmartAttendanceNavigation(
                     },
                     onNavigateToEventDetail = { eventId ->
                         navController.navigate(Screen.EventDetail.createRoute(eventId))
+                    }
+                )
+            }
+        }
+        
+        composable(Screen.AttendanceHistory.route) {
+            val role = currentUserRole ?: UserRole.STUDENT
+            
+            if (role == UserRole.STUDENT) {
+                AttendanceHistoryScreen(
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    },
+                    onNavigateToAttendanceHistory = {
+                        // Already here
+                    },
+                    onNavigateToEvents = {
+                        navController.navigate(Screen.Events.route)
+                    },
+                    onNavigateToProfile = {
+                        navController.navigate(Screen.Profile.route)
+                    }
+                )
+            }
+        }
+        
+        composable(Screen.Events.route) {
+            val role = currentUserRole ?: UserRole.STUDENT
+            
+            if (role == UserRole.STUDENT) {
+                EventsScreen(
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    },
+                    onNavigateToAttendanceHistory = {
+                        navController.navigate(Screen.AttendanceHistory.route)
+                    },
+                    onNavigateToProfile = {
+                        navController.navigate(Screen.Profile.route)
+                    },
+                    onNavigateToAttendanceMarking = { eventId ->
+                        navController.navigate(Screen.AttendanceMarking.createRoute(eventId))
+                    }
+                )
+            }
+        }
+        
+        composable(Screen.Profile.route) {
+            val role = currentUserRole ?: UserRole.STUDENT
+            
+            if (role == UserRole.STUDENT) {
+                ProfileScreen(
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    },
+                    onNavigateToAttendanceHistory = {
+                        navController.navigate(Screen.AttendanceHistory.route)
+                    },
+                    onNavigateToEvents = {
+                        navController.navigate(Screen.Events.route)
+                    },
+                    onNavigateToLogin = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Profile.route) { inclusive = true }
+                        }
+                        // Reset user role after logout
+                        currentUserRole = UserRole.STUDENT
                     }
                 )
             }

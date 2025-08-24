@@ -40,6 +40,14 @@ abstract class SmartAttendanceDatabase : RoomDatabase() {
                     "smart_attendance_database"
                 )
                 .fallbackToDestructiveMigration()
+                .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
+                .addCallback(object : RoomDatabase.Callback() {
+                    override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                        super.onOpen(db)
+                        // Enable foreign key constraints
+                        db.execSQL("PRAGMA foreign_keys=ON")
+                    }
+                })
                 .build()
                 INSTANCE = instance
                 instance

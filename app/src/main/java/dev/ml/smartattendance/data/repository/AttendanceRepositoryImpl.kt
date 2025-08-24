@@ -19,6 +19,9 @@ class AttendanceRepositoryImpl @Inject constructor(
     override suspend fun getAttendanceByStudentId(studentId: String): List<AttendanceRecord> = 
         attendanceRecordDao.getAttendanceByStudentId(studentId)
     
+    override suspend fun getDetailedAttendanceByStudentId(studentId: String): List<DetailedAttendanceRecord> = 
+        attendanceRecordDao.getDetailedAttendanceByStudentId(studentId)
+    
     override suspend fun getAttendanceByEventId(eventId: String): List<AttendanceRecord> = 
         attendanceRecordDao.getAttendanceByEventId(eventId)
     
