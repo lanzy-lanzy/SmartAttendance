@@ -26,6 +26,8 @@ import dev.ml.smartattendance.domain.model.UserRole
 import dev.ml.smartattendance.presentation.navigation.Screen
 import dev.ml.smartattendance.presentation.screen.EventManagementScreen
 import dev.ml.smartattendance.presentation.screen.StudentManagementScreen
+import dev.ml.smartattendance.presentation.screen.admin.ComprehensiveStudentManagementScreen
+import dev.ml.smartattendance.presentation.screen.admin.ComprehensiveEventDetailScreen
 import dev.ml.smartattendance.presentation.viewmodel.AuthViewModel
 import dev.ml.smartattendance.ui.components.*
 import dev.ml.smartattendance.ui.theme.*
@@ -162,15 +164,21 @@ fun AdminDashboardScreen(
                 .alpha(contentAlpha)
         ) {
             composable(Screen.StudentManagement.route) {
-                StudentManagementScreen(
-                    onNavigateBack = { /* Handled by bottom navigation */ }
+                ComprehensiveStudentManagementScreen(
+                    onNavigateBack = { /* Handled by bottom navigation */ },
+                    onNavigateToStudentDetail = { studentId ->
+                        // TODO: Navigate to student detail screen
+                    }
                 )
             }
             
             composable(Screen.EventManagement.route) {
                 EventManagementScreen(
                     onNavigateBack = { /* Handled by bottom navigation */ },
-                    onNavigateToEventDetail = onNavigateToEventDetail
+                    onNavigateToEventDetail = { eventId ->
+                        // Navigate to comprehensive event detail
+                        onNavigateToEventDetail(eventId)
+                    }
                 )
             }
             

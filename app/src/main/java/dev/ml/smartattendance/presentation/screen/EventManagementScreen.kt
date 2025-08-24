@@ -327,12 +327,12 @@ fun ModernEventCard(
                     // Event status badge
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (event.isActive) Success.copy(alpha = 0.15f) else Error.copy(alpha = 0.15f)
+                        color = if (event.isActive) SuccessGreen.copy(alpha = 0.15f) else ErrorRed.copy(alpha = 0.15f)
                     ) {
                         Text(
                             text = if (event.isActive) "Active" else "Inactive",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (event.isActive) Success else Error,
+                            color = if (event.isActive) SuccessGreen else ErrorRed,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
@@ -360,7 +360,7 @@ fun ModernEventCard(
                         Icon(
                             imageVector = if (event.isActive) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (event.isActive) "Deactivate" else "Activate",
-                            tint = if (event.isActive) Error else Success
+                            tint = if (event.isActive) ErrorRed else SuccessGreen
                         )
                     }
                     
@@ -376,7 +376,7 @@ fun ModernEventCard(
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Delete",
-                            tint = Error
+                            tint = ErrorRed
                         )
                     }
                 }
@@ -1582,7 +1582,7 @@ fun DeleteConfirmationDialog(
             Icon(
                 Icons.Default.Warning,
                 contentDescription = null,
-                tint = Error,
+                tint = ErrorRed,
                 modifier = Modifier.size(32.dp)
             )
         },
@@ -1614,16 +1614,16 @@ fun DeleteConfirmationDialog(
                 Text(
                     text = "This action cannot be undone and all related attendance records will be affected.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Error
+                    color = ErrorRed
                 )
             }
         },
         confirmButton = {
             Button(
                 onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = Error)
+                colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)
             ) {
-                Text("Delete", color = OnPrimary)
+                Text("Delete", color = Color.White)
             }
         },
         dismissButton = {

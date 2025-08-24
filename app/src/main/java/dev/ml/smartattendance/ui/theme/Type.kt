@@ -123,3 +123,6 @@ val Typography = Typography(
         letterSpacing = 0.5.sp
     )
 )
+
+// Alias for theme usage
+val SmartAttendanceTypography = Typography

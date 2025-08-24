@@ -173,9 +173,12 @@ fun SmartAttendanceNavigation(
             
             // Only allow admins to access this screen
             if (role == UserRole.ADMIN) {
-                StudentManagementScreen(
+                dev.ml.smartattendance.presentation.screen.admin.ComprehensiveStudentManagementScreen(
                     onNavigateBack = {
                         navController.popBackStack()
+                    },
+                    onNavigateToStudentDetail = { studentId ->
+                        // TODO: Navigate to student detail screen
                     }
                 )
             }
@@ -205,7 +208,7 @@ fun SmartAttendanceNavigation(
             // Only allow admins to access this screen
             if (role == UserRole.ADMIN) {
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
-                EventDetailScreen(
+                dev.ml.smartattendance.presentation.screen.admin.ComprehensiveEventDetailScreen(
                     eventId = eventId,
                     onNavigateBack = {
                         navController.popBackStack()
