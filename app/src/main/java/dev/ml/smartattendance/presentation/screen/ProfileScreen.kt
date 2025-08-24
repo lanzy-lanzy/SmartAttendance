@@ -25,6 +25,7 @@ fun ProfileScreen(
     onNavigateToAttendanceHistory: () -> Unit = {},
     onNavigateToEvents: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {},
+    onNavigateToDashboard: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -56,7 +57,7 @@ fun ProfileScreen(
                 userRole = UserRole.STUDENT,
                 onNavigate = { route ->
                     when (route) {
-                        "dashboard" -> onNavigateBack()
+                        "dashboard" -> onNavigateToDashboard()
                         "attendance_history" -> onNavigateToAttendanceHistory()
                         "events" -> onNavigateToEvents()
                         "profile" -> { /* Already here */ }

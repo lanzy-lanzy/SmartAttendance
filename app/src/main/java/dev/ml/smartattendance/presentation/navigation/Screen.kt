@@ -1,6 +1,7 @@
 package dev.ml.smartattendance.presentation.navigation
 
 sealed class Screen(val route: String) {
+    object Splash : Screen("splash")
     object Dashboard : Screen("dashboard")
     object Attendance : Screen("attendance/{eventId}") {
         fun createRoute(eventId: String) = "attendance/$eventId"

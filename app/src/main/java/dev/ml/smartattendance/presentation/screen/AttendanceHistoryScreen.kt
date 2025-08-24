@@ -29,6 +29,7 @@ fun AttendanceHistoryScreen(
     onNavigateToAttendanceHistory: () -> Unit = {},
     onNavigateToEvents: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onNavigateToDashboard: () -> Unit = {},
     viewModel: AttendanceHistoryViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -60,7 +61,7 @@ fun AttendanceHistoryScreen(
                 userRole = UserRole.STUDENT,
                 onNavigate = { route ->
                     when (route) {
-                        "dashboard" -> onNavigateBack()
+                        "dashboard" -> onNavigateToDashboard()
                         "attendance_history" -> { /* Already here */ }
                         "events" -> onNavigateToEvents()
                         "profile" -> onNavigateToProfile()

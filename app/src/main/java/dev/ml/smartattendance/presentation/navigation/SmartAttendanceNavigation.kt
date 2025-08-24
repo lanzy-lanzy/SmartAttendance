@@ -17,6 +17,7 @@ import dev.ml.smartattendance.presentation.screen.admin.AdminDashboardScreen
 import dev.ml.smartattendance.presentation.screen.admin.EventDetailScreen
 import dev.ml.smartattendance.presentation.screen.auth.LoginScreen
 import dev.ml.smartattendance.presentation.screen.auth.RegisterScreen
+import dev.ml.smartattendance.presentation.screen.auth.SplashScreen
 
 @Composable
 fun SmartAttendanceNavigation(
@@ -60,8 +61,27 @@ fun SmartAttendanceNavigation(
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Login.route
+        startDestination = Screen.Splash.route
     ) {
+        composable(Screen.Splash.route) {
+            SplashScreen(
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                },
+                onNavigateToStudentDashboard = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                },
+                onNavigateToAdminDashboard = {
+                    navController.navigate(Screen.AdminDashboard.route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                }
+            )
+        }
         composable(Screen.Login.route) {
             LoginScreen(
                 onNavigateToRegister = {
@@ -227,8 +247,8 @@ fun SmartAttendanceNavigation(
                         navController.popBackStack()
                     },
                     onLogout = {
-                        // Handle logout - this would typically navigate back to login
-                        navController.navigate(Screen.Login.route) {
+                        // Handle logout - navigate to splash for auth check
+                        navController.navigate(Screen.Splash.route) {
                             popUpTo(Screen.AdminDashboard.route) { inclusive = true }
                         }
                         // Reset user role after logout
@@ -257,6 +277,9 @@ fun SmartAttendanceNavigation(
                     },
                     onNavigateToProfile = {
                         navController.navigate(Screen.Profile.route)
+                    },
+                    onNavigateToDashboard = {
+                        navController.navigate(Screen.Dashboard.route)
                     }
                 )
             }
@@ -278,6 +301,9 @@ fun SmartAttendanceNavigation(
                     },
                     onNavigateToAttendanceMarking = { eventId ->
                         navController.navigate(Screen.AttendanceMarking.createRoute(eventId))
+                    },
+                    onNavigateToDashboard = {
+                        navController.navigate(Screen.Dashboard.route)
                     }
                 )
             }
@@ -298,11 +324,14 @@ fun SmartAttendanceNavigation(
                         navController.navigate(Screen.Events.route)
                     },
                     onNavigateToLogin = {
-                        navController.navigate(Screen.Login.route) {
+                        navController.navigate(Screen.Splash.route) {
                             popUpTo(Screen.Profile.route) { inclusive = true }
                         }
                         // Reset user role after logout
                         currentUserRole = UserRole.STUDENT
+                    },
+                    onNavigateToDashboard = {
+                        navController.navigate(Screen.Dashboard.route)
                     }
                 )
             }

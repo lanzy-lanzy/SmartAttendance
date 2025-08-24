@@ -28,6 +28,7 @@ fun EventsScreen(
     onNavigateToAttendanceHistory: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToAttendanceMarking: (String) -> Unit = {},
+    onNavigateToDashboard: () -> Unit = {},
     viewModel: AttendanceViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -59,7 +60,7 @@ fun EventsScreen(
                 userRole = UserRole.STUDENT,
                 onNavigate = { route ->
                     when (route) {
-                        "dashboard" -> onNavigateBack()
+                        "dashboard" -> onNavigateToDashboard()
                         "attendance_history" -> onNavigateToAttendanceHistory()
                         "events" -> { /* Already here */ }
                         "profile" -> onNavigateToProfile()
