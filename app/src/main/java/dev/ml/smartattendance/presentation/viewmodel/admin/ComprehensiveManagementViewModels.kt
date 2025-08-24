@@ -14,6 +14,7 @@ import dev.ml.smartattendance.presentation.screen.admin.StudentAttendanceData
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -51,11 +52,7 @@ class ComprehensiveStudentManagementViewModel @Inject constructor(
             try {
                 _state.value = _state.value.copy(isLoading = true, error = null)
                 
-                val students = studentRepository.getAllActiveStudents().let { flow ->
-                    var result = emptyList<Student>()
-                    flow.collect { result = it }
-                    result
-                }
+                val students = studentRepository.getAllActiveStudents().first()
                 
                 val courses = students.map { it.course }.distinct().sorted()
                 
@@ -221,12 +218,25 @@ class ComprehensiveStudentManagementViewModel @Inject constructor(
     fun deleteStudent(studentId: String) {
         viewModelScope.launch {
             try {
+                _state.value = _state.value.copy(
+                    isEnrolling = true,
+                    enrollmentMessage = null,
+                    error = null
+                )
+                
                 val student = state.value.students.find { it.id == studentId } ?: return@launch
                 studentRepository.deleteStudent(student)
+                
+                _state.value = _state.value.copy(
+                    isEnrolling = false,
+                    enrollmentMessage = "Student and related attendance records deleted successfully!"
+                )
+                
                 loadStudents() // Refresh the list
                 
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
+                    isEnrolling = false,
                     error = "Failed to delete student: ${e.message}"
                 )
             }
@@ -331,11 +341,7 @@ class ComprehensiveEventDetailViewModel @Inject constructor(
                 _state.value = _state.value.copy(isLoading = true, error = null)
                 
                 val event = eventRepository.getEventById(eventId)
-                val students = studentRepository.getAllActiveStudents().let { flow ->
-                    var result = emptyList<Student>()
-                    flow.collect { result = it }
-                    result
-                }
+                val students = studentRepository.getAllActiveStudents().first()
                 
                 _state.value = _state.value.copy(
                     event = event,

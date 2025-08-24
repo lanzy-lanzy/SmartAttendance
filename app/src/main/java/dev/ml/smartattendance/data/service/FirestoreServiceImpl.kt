@@ -336,6 +336,18 @@ class FirestoreServiceImpl @Inject constructor(
         }
     }
 
+    override suspend fun deleteAttendanceRecord(recordId: String): Boolean {
+        return try {
+            firestore.collection(ATTENDANCE_COLLECTION)
+                .document(recordId)
+                .delete()
+                .await()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     override suspend fun getAttendanceByStudent(studentId: String): List<AttendanceRecord> {
         return try {
             val snapshot = firestore.collection(ATTENDANCE_COLLECTION)
@@ -398,5 +410,59 @@ class FirestoreServiceImpl @Inject constructor(
     override suspend fun batchSyncData(): Boolean {
         // Implementation for batch data synchronization
         return true
+    }
+    
+    override suspend fun deleteStudentWithCascade(studentId: String): Boolean {
+        return try {
+            // Start a batch operation
+            val batch = firestore.batch()
+            
+            // Delete the student
+            val studentRef = firestore.collection(STUDENTS_COLLECTION).document(studentId)
+            batch.delete(studentRef)
+            
+            // Delete all attendance records for this student
+            val attendanceSnapshot = firestore.collection(ATTENDANCE_COLLECTION)
+                .whereEqualTo("studentId", studentId)
+                .get()
+                .await()
+            
+            for (document in attendanceSnapshot.documents) {
+                batch.delete(document.reference)
+            }
+            
+            // Commit the batch
+            batch.commit().await()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    override suspend fun deleteEventWithCascade(eventId: String): Boolean {
+        return try {
+            // Start a batch operation
+            val batch = firestore.batch()
+            
+            // Delete the event
+            val eventRef = firestore.collection(EVENTS_COLLECTION).document(eventId)
+            batch.delete(eventRef)
+            
+            // Delete all attendance records for this event
+            val attendanceSnapshot = firestore.collection(ATTENDANCE_COLLECTION)
+                .whereEqualTo("eventId", eventId)
+                .get()
+                .await()
+            
+            for (document in attendanceSnapshot.documents) {
+                batch.delete(document.reference)
+            }
+            
+            // Commit the batch
+            batch.commit().await()
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 }

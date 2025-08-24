@@ -42,7 +42,7 @@ fun AdminDashboardScreen(
 ) {
     val bottomNavController = rememberNavController()
     val backStackEntry = bottomNavController.currentBackStackEntryAsState()
-    val currentScreen = backStackEntry.value?.destination?.route ?: Screen.StudentManagement.route
+    val currentScreen = backStackEntry.value?.destination?.route ?: "admin_main"
     
     // Animation states
     var startAnimations by remember { mutableStateOf(false) }
@@ -72,42 +72,26 @@ fun AdminDashboardScreen(
     }
 
     Scaffold(
-        topBar = {
-            ModernTopAppBar(
-                title = "Admin Dashboard",
-                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
-                onNavigationClick = onNavigateBack,
-                actions = {
-                    IconButton(onClick = {
-                        authViewModel.signOut()
-                        onLogout()
-                    }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.Logout, 
-                            contentDescription = "Logout",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            )
-        },
         bottomBar = {
             ModernBottomNavigation(
                 currentRoute = currentScreen,
                 userRole = UserRole.ADMIN,
                 onNavigate = { route ->
                     try {
-                        bottomNavController.navigate(route) {
-                            popUpTo(bottomNavController.graph.startDestinationId) {
-                                saveState = true
+                        if (currentScreen != route) {
+                            bottomNavController.navigate(route) {
+                                // Use a simpler popUpTo strategy
+                                popUpTo(bottomNavController.graph.startDestinationId) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                            launchSingleTop = true
-                            restoreState = true
                         }
                     } catch (e: Exception) {
                         // Handle navigation errors gracefully
                         e.printStackTrace()
-                        // Fallback: navigate without options
+                        // Fallback: simple navigation without options
                         try {
                             bottomNavController.navigate(route)
                         } catch (fallbackError: Exception) {
@@ -120,52 +104,39 @@ fun AdminDashboardScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        // Modern Welcome Header with Gradient
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            Primary,
-                            PrimaryVariant
-                        )
-                    )
-                )
-                .alpha(headerAlpha)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp)
-            ) {
-                Text(
-                    text = "Admin Dashboard",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = OnPrimary
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    text = "Manage students, events, and monitor attendance",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = OnPrimary.copy(alpha = 0.9f)
-                )
-            }
-        }
-        
         NavHost(
             navController = bottomNavController,
-            startDestination = Screen.StudentManagement.route,
+            startDestination = "admin_main",
             modifier = Modifier
                 .padding(paddingValues)
                 .alpha(contentAlpha)
         ) {
+            composable("admin_main") {
+                AdminDashboardMainScreen(
+                    onNavigateToStudents = {
+                        bottomNavController.navigate(Screen.StudentManagement.route)
+                    },
+                    onNavigateToEvents = {
+                        bottomNavController.navigate(Screen.EventManagement.route)
+                    },
+                    onNavigateToReports = {
+                        bottomNavController.navigate("reports")
+                    },
+                    onNavigateToSettings = {
+                        bottomNavController.navigate("settings")
+                    },
+                    onLogout = onLogout
+                )
+            }
+            
             composable(Screen.StudentManagement.route) {
                 ComprehensiveStudentManagementScreen(
-                    onNavigateBack = { /* Handled by bottom navigation */ },
+                    onNavigateBack = {
+                        bottomNavController.navigate("admin_main") {
+                            popUpTo("admin_main") { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    },
                     onNavigateToStudentDetail = { studentId ->
                         // TODO: Navigate to student detail screen
                     }
@@ -174,7 +145,12 @@ fun AdminDashboardScreen(
             
             composable(Screen.EventManagement.route) {
                 EventManagementScreen(
-                    onNavigateBack = { /* Handled by bottom navigation */ },
+                    onNavigateBack = {
+                        bottomNavController.navigate("admin_main") {
+                            popUpTo("admin_main") { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    },
                     onNavigateToEventDetail = { eventId ->
                         // Navigate to comprehensive event detail
                         onNavigateToEventDetail(eventId)

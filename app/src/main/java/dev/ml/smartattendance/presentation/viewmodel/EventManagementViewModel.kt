@@ -12,6 +12,7 @@ import dev.ml.smartattendance.presentation.state.EventManagementState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -35,13 +36,12 @@ class EventManagementViewModel @Inject constructor(
             _state.value = _state.value.copy(isLoading = true)
             
             try {
-                getCurrentEventsUseCase.getAllEvents().collect { events ->
-                    _state.value = _state.value.copy(
-                        events = events,
-                        isLoading = false,
-                        error = null
-                    )
-                }
+                val events = getCurrentEventsUseCase.getAllEvents().first()
+                _state.value = _state.value.copy(
+                    events = events,
+                    isLoading = false,
+                    error = null
+                )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     isLoading = false,
@@ -184,12 +184,12 @@ class EventManagementViewModel @Inject constructor(
             )
             
             try {
-                val success = firestoreService.deleteEvent(eventId)
+                val success = firestoreService.deleteEventWithCascade(eventId)
                 
                 if (success) {
                     _state.value = _state.value.copy(
                         isLoading = false,
-                        creationMessage = "Event deleted successfully!",
+                        creationMessage = "Event and related attendance records deleted successfully!",
                         error = null
                     )
                     loadEvents() // Refresh the list

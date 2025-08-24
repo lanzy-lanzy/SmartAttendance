@@ -35,6 +35,7 @@ interface FirestoreService {
     suspend fun createAttendanceRecord(record: AttendanceRecord): Boolean
     suspend fun getAttendanceRecord(studentId: String, eventId: String): AttendanceRecord?
     suspend fun updateAttendanceRecord(record: AttendanceRecord): Boolean
+    suspend fun deleteAttendanceRecord(recordId: String): Boolean
     suspend fun getAttendanceByStudent(studentId: String): List<AttendanceRecord>
     suspend fun getAttendanceByEvent(eventId: String): List<AttendanceRecord>
     suspend fun getAllAttendanceRecords(): List<AttendanceRecord>
@@ -42,4 +43,8 @@ interface FirestoreService {
     
     // Batch operations
     suspend fun batchSyncData(): Boolean
+    
+    // Cascade delete operations
+    suspend fun deleteStudentWithCascade(studentId: String): Boolean
+    suspend fun deleteEventWithCascade(eventId: String): Boolean
 }

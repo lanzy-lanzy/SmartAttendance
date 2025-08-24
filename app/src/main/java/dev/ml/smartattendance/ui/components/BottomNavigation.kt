@@ -70,6 +70,12 @@ fun ModernBottomNavigation(
             )
             UserRole.ADMIN -> listOf(
                 BottomNavItem(
+                    route = "admin_main",
+                    selectedIcon = Icons.Filled.Dashboard,
+                    unselectedIcon = Icons.Outlined.Dashboard,
+                    label = "Dashboard"
+                ),
+                BottomNavItem(
                     route = Screen.StudentManagement.route,
                     selectedIcon = Icons.Filled.People,
                     unselectedIcon = Icons.Outlined.People,

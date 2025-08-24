@@ -3,6 +3,7 @@ package dev.ml.smartattendance
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 import dev.ml.smartattendance.data.database.SmartAttendanceDatabase
+import dev.ml.smartattendance.data.entity.AttendanceRecord
 import dev.ml.smartattendance.data.entity.Event
 import dev.ml.smartattendance.data.entity.Student
 import dev.ml.smartattendance.domain.model.LatLng
@@ -89,15 +90,101 @@ class SmartAttendanceApplication : Application() {
                         )
                     }
                     
-                    // Add sample student
-                    val sampleStudent = Student(
-                        id = "STUDENT001",
-                        name = "John Doe",
-                        course = "Computer Science",
-                        enrollmentDate = currentTime
+                    // Add sample students
+                    val sampleStudents = listOf(
+                        Student(
+                            id = "STUDENT001",
+                            name = "John Doe",
+                            course = "Computer Science",
+                            enrollmentDate = currentTime
+                        ),
+                        Student(
+                            id = "STUDENT002",
+                            name = "Jane Smith",
+                            course = "Computer Science",
+                            enrollmentDate = currentTime
+                        ),
+                        Student(
+                            id = "STUDENT003",
+                            name = "Mike Johnson",
+                            course = "Software Engineering",
+                            enrollmentDate = currentTime
+                        ),
+                        Student(
+                            id = "STUDENT004",
+                            name = "Sarah Wilson",
+                            course = "Data Science",
+                            enrollmentDate = currentTime
+                        ),
+                        Student(
+                            id = "STUDENT005",
+                            name = "David Brown",
+                            course = "Computer Science",
+                            enrollmentDate = currentTime
+                        ),
+                        Student(
+                            id = "STUDENT006",
+                            name = "Emily Davis",
+                            course = "Software Engineering",
+                            enrollmentDate = currentTime
+                        )
                     )
                     
-                    database.studentDao().insertStudent(sampleStudent)
+                    database.studentDao().insertStudents(sampleStudents)
+                    
+                    // Add sample attendance records for demonstration
+                    val sampleAttendanceRecords = listOf(
+                        AttendanceRecord(
+                            id = "ATTENDANCE001",
+                            studentId = "STUDENT001",
+                            eventId = "EVENT001",
+                            timestamp = currentTime - (24 * 60 * 60 * 1000), // Yesterday
+                            status = dev.ml.smartattendance.domain.model.AttendanceStatus.PRESENT,
+                            penalty = null,
+                            latitude = 37.7749,
+                            longitude = -122.4194,
+                            synced = true,
+                            notes = "On time"
+                        ),
+                        AttendanceRecord(
+                            id = "ATTENDANCE002",
+                            studentId = "STUDENT002",
+                            eventId = "EVENT001",
+                            timestamp = currentTime - (24 * 60 * 60 * 1000) + (10 * 60 * 1000), // Yesterday, 10 min late
+                            status = dev.ml.smartattendance.domain.model.AttendanceStatus.LATE,
+                            penalty = dev.ml.smartattendance.domain.model.PenaltyType.WARNING,
+                            latitude = 37.7749,
+                            longitude = -122.4194,
+                            synced = true,
+                            notes = "10 minutes late"
+                        ),
+                        AttendanceRecord(
+                            id = "ATTENDANCE003",
+                            studentId = "STUDENT003",
+                            eventId = "EVENT002",
+                            timestamp = currentTime - (2 * 60 * 60 * 1000), // 2 hours ago
+                            status = dev.ml.smartattendance.domain.model.AttendanceStatus.PRESENT,
+                            penalty = null,
+                            latitude = 37.7749,
+                            longitude = -122.4194,
+                            synced = true,
+                            notes = "Present"
+                        ),
+                        AttendanceRecord(
+                            id = "ATTENDANCE004",
+                            studentId = "STUDENT004",
+                            eventId = "EVENT002",
+                            timestamp = currentTime - (2 * 60 * 60 * 1000) + (20 * 60 * 1000), // 2 hours ago, 20 min late
+                            status = dev.ml.smartattendance.domain.model.AttendanceStatus.LATE,
+                            penalty = dev.ml.smartattendance.domain.model.PenaltyType.MINOR,
+                            latitude = 37.7749,
+                            longitude = -122.4194,
+                            synced = true,
+                            notes = "20 minutes late"
+                        )
+                    )
+                    
+                    database.attendanceRecordDao().insertAttendanceRecords(sampleAttendanceRecords)
                 }
             } catch (e: Exception) {
                 // Ignore errors during sample data initialization

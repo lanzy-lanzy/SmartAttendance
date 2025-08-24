@@ -9,6 +9,7 @@ import dev.ml.smartattendance.presentation.state.StudentManagementState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -30,13 +31,12 @@ class StudentManagementViewModel @Inject constructor(
             _state.value = _state.value.copy(isLoading = true)
             
             try {
-                studentRepository.getAllActiveStudents().collect { students ->
-                    _state.value = _state.value.copy(
-                        students = students,
-                        isLoading = false,
-                        error = null
-                    )
-                }
+                val students = studentRepository.getAllActiveStudents().first()
+                _state.value = _state.value.copy(
+                    students = students,
+                    isLoading = false,
+                    error = null
+                )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     isLoading = false,
