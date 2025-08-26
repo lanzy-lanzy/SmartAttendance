@@ -3,23 +3,19 @@ package dev.ml.smartattendance.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.ml.smartattendance.data.dao.DetailedAttendanceRecord
 import dev.ml.smartattendance.domain.repository.AttendanceRepository
+import dev.ml.smartattendance.domain.service.AuthService
+import dev.ml.smartattendance.presentation.state.AttendanceHistoryState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class AttendanceHistoryState(
-    val attendanceRecords: List<DetailedAttendanceRecord> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null
-)
-
 @HiltViewModel
 class AttendanceHistoryViewModel @Inject constructor(
-    private val attendanceRepository: AttendanceRepository
+    private val attendanceRepository: AttendanceRepository,
+    private val authService: AuthService
 ) : ViewModel() {
     
     private val _state = MutableStateFlow(AttendanceHistoryState())
@@ -30,8 +26,21 @@ class AttendanceHistoryViewModel @Inject constructor(
             try {
                 _state.value = _state.value.copy(isLoading = true, error = null)
                 
-                // TODO: Get current student ID from auth service
-                val studentId = "STUDENT001" // Placeholder
+                // Get current student ID from auth service
+                val currentUser = authService.getCurrentUser()
+                val studentId = currentUser?.studentId
+                
+                android.util.Log.d("AttendanceHistoryViewModel", "Current user: ${currentUser?.uid}, role: ${currentUser?.role}, studentId: $studentId")
+                
+                if (studentId.isNullOrBlank()) {
+                    _state.value = _state.value.copy(
+                        attendanceRecords = emptyList(),
+                        isLoading = false,
+                        error = "No student ID found. Please make sure you're logged in as a student."
+                    )
+                    return@launch
+                }
+                
                 val records = attendanceRepository.getDetailedAttendanceByStudentId(studentId)
                 
                 _state.value = _state.value.copy(

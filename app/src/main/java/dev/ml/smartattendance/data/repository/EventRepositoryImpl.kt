@@ -7,7 +7,7 @@ import dev.ml.smartattendance.domain.service.FirestoreService
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.catch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,12 +18,8 @@ class EventRepositoryImpl @Inject constructor(
 ) : EventRepository {
     
     override fun getAllActiveEvents(): Flow<List<Event>> {
-        // Cloud-first approach: Get active events from Firebase with local fallback
+        // Firebase-first approach: Get active events from Firebase, then use local as fallback
         return firestoreService.getEventsFlow()
-            .onStart {
-                // Start with local data for immediate display
-                emit(eventDao.getAllActiveEvents().first())
-            }
             .map { firebaseEvents ->
                 val activeEvents = firebaseEvents.filter { it.isActive }
                 if (activeEvents.isNotEmpty()) {
@@ -31,38 +27,117 @@ class EventRepositoryImpl @Inject constructor(
                     eventDao.insertEvents(firebaseEvents)
                     activeEvents
                 } else {
-                    // Fallback to local data
+                    // Fallback to local data only if Firebase returns empty list
                     eventDao.getAllActiveEvents().first()
                 }
+            }
+            .catch { e ->
+                // If Firebase throws an error, fallback to local
+                emit(eventDao.getAllActiveEvents().first())
             }
     }
     
     override fun getAllEvents(): Flow<List<Event>> {
-        // Cloud-first approach: Firebase events with local fallback
+        // Firebase-first approach: Get all events from Firebase, then use local as fallback
         return firestoreService.getEventsFlow()
-            .onStart {
-                // Start with local data for immediate display
-                emit(eventDao.getAllEvents().first())
-            }
             .map { firebaseEvents ->
                 if (firebaseEvents.isNotEmpty()) {
                     // Cache Firebase data locally
                     eventDao.insertEvents(firebaseEvents)
                     firebaseEvents
                 } else {
-                    // Fallback to local data
+                    // Fallback to local data only if Firebase returns empty list
                     eventDao.getAllEvents().first()
                 }
+            }
+            .catch { e ->
+                // If Firebase throws an error, fallback to local
+                emit(eventDao.getAllEvents().first())
             }
     }
     
     override suspend fun getEventById(eventId: String): Event? {
-        // Try Firebase first, fallback to local
-        return try {
-            firestoreService.getEvent(eventId) ?: eventDao.getEventById(eventId)
-        } catch (e: Exception) {
-            eventDao.getEventById(eventId)
+        android.util.Log.d("EventRepository", "Getting event by ID: '$eventId'")
+        
+        if (eventId.isBlank()) {
+            android.util.Log.e("EventRepository", "Invalid event ID (blank)")
+            return null
         }
+        
+        // Clean the ID to prevent whitespace issues
+        val cleanId = eventId.trim()
+        
+        // Try Firebase first
+        try {
+            android.util.Log.d("EventRepository", "Fetching event from Firebase: '$cleanId'")
+            val firebaseEvent = firestoreService.getEvent(cleanId)
+            
+            if (firebaseEvent != null) {
+                android.util.Log.d("EventRepository", "Successfully retrieved event from Firebase: ${firebaseEvent.name}")
+                // Make sure ID is set properly
+                val fixedEvent = firebaseEvent.copy(id = cleanId)
+                // Cache the event locally for future use
+                try {
+                    eventDao.insertEvent(fixedEvent)
+                    android.util.Log.d("EventRepository", "Cached event in local database")
+                } catch (cacheEx: Exception) {
+                    android.util.Log.e("EventRepository", "Failed to cache event: ${cacheEx.message}")
+                }
+                return fixedEvent
+            } else {
+                android.util.Log.w("EventRepository", "Event not found in Firebase: '$cleanId'")
+            }
+        } catch (e: Exception) {
+            // If Firebase fails, fall back to local cache
+            android.util.Log.e("EventRepository", "Error fetching from Firebase: ${e.message}")
+        }
+        
+        // Try local database
+        try {
+            android.util.Log.d("EventRepository", "Falling back to local database for event: '$cleanId'")
+            val localEvent = eventDao.getEventById(cleanId)
+            
+            if (localEvent != null) {
+                android.util.Log.d("EventRepository", "Found event in local database: ${localEvent.name}")
+                
+                // Attempt to refresh from Firebase in background
+                try {
+                    android.util.Log.d("EventRepository", "Attempting to refresh stale data from Firebase")
+                    val refreshedEvent = firestoreService.getEvent(cleanId)
+                    if (refreshedEvent != null && refreshedEvent != localEvent) {
+                        android.util.Log.d("EventRepository", "Updating local cache with fresh data")
+                        eventDao.insertEvent(refreshedEvent)
+                        return refreshedEvent
+                    }
+                } catch (refreshEx: Exception) {
+                    android.util.Log.e("EventRepository", "Failed to refresh data: ${refreshEx.message}")
+                }
+                
+                return localEvent
+            } else {
+                android.util.Log.w("EventRepository", "Event not found in local database: '$cleanId'")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("EventRepository", "Error fetching from local database: ${e.message}")
+        }
+        
+        // Try one more direct approach to Firestore
+        try {
+            android.util.Log.d("EventRepository", "Trying direct Firestore module as last resort for: '$cleanId'")
+            val firestoreModule = dev.ml.smartattendance.data.service.FirebaseModule
+            val directService = firestoreModule.provideFirestoreService()
+            val directEvent = directService.getEvent(cleanId)
+            
+            if (directEvent != null) {
+                android.util.Log.d("EventRepository", "Found event via direct Firestore module: ${directEvent.name}")
+                return directEvent
+            }
+        } catch (directEx: Exception) {
+            android.util.Log.e("EventRepository", "Direct Firestore attempt failed: ${directEx.message}")
+        }
+        
+        android.util.Log.e("EventRepository", "Event not found anywhere: '$cleanId'")
+        return null
     }
     
     override suspend fun getCurrentEvents(currentTime: Long): List<Event> {

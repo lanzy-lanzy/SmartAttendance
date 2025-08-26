@@ -124,7 +124,9 @@ fun EmptyStudentsCard() {
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
         ) {
             Icon(
                 Icons.Default.PersonOff,
@@ -146,9 +148,18 @@ fun EmptyStudentsCard() {
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = "No students match your current filter criteria",
+                text = "No students match your current filter criteria or no students are registered yet.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = "Students registered in the app will automatically appear here after they create an account.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center
             )
         }

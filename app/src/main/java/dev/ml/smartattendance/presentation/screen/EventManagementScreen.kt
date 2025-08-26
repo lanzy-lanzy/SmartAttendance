@@ -34,10 +34,8 @@ import dev.ml.smartattendance.ui.components.*
 import dev.ml.smartattendance.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.Calendar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -53,54 +51,51 @@ fun EventManagementScreen(
     var selectedEvent by remember { mutableStateOf<Event?>(null) }
     var filterActiveOnly by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var localErrorMessage by remember { mutableStateOf<String?>(null) }
     
+    // Set up error handling to catch any crashes
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    
+    // Safely load events with error handling
     LaunchedEffect(Unit) {
-        viewModel.loadEvents()
-    }
-    
-    // Clear messages after showing them
-    LaunchedEffect(state.creationMessage, state.error) {
-        if (state.creationMessage != null || state.error != null) {
-            kotlinx.coroutines.delay(3000)
-            viewModel.clearMessages()
+        try {
+            android.util.Log.d("EventManagementScreen", "Loading events from Firebase...")
+            viewModel.loadEvents()
+        } catch (e: Exception) {
+            android.util.Log.e("EventManagementScreen", "Error loading events: ${e.message}", e)
+            e.printStackTrace()
+            localErrorMessage = "Failed to load events: ${e.message}"
         }
     }
     
     Scaffold(
         topBar = {
-            CleanTopAppBar(
-                title = "Events",
-                onNavigateBack = onNavigateBack,
+            ModernTopAppBar(
+                title = "Event Management",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onNavigationClick = onNavigateBack,
                 actions = {
-                    // Filter toggle
                     IconButton(onClick = { filterActiveOnly = !filterActiveOnly }) {
                         Icon(
                             imageVector = if (filterActiveOnly) Icons.Default.FilterAlt else Icons.Default.FilterAltOff,
-                            contentDescription = if (filterActiveOnly) "Show All" else "Filter Active",
-                            tint = if (filterActiveOnly) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            contentDescription = if (filterActiveOnly) "Show All" else "Filter Active"
                         )
                     }
-                    
-                    // Add button
                     IconButton(onClick = { showAddDialog = true }) {
-                        Icon(
-                            Icons.Default.Add, 
-                            contentDescription = "Add Event",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                        Icon(Icons.Default.Add, contentDescription = "Add Event")
                     }
                 }
             )
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Clean Header with Search and Stats
+            // Header with Search and Stats
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -108,76 +103,77 @@ fun EventManagementScreen(
                     .padding(16.dp)
             ) {
                 // Search Bar
-                CleanSearchBar(
+                OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = "Search events...",
-                    modifier = Modifier.fillMaxWidth()
+                    placeholder = { Text("Search events...") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Compact Statistics Row
+                // Statistics Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    CompactStatItem(
+                    StatItem(
                         title = "Total",
-                        value = state.events.size.toString(),
-                        color = MaterialTheme.colorScheme.primary
+                        value = try { state.events.size.toString() } catch (e: Exception) { "0" },
+                        icon = Icons.Default.Event
                     )
                     
-                    CompactStatItem(
+                    StatItem(
                         title = "Active",
-                        value = state.events.count { it.isActive }.toString(),
-                        color = MaterialTheme.colorScheme.tertiary
+                        value = try { state.events.count { it.isActive }.toString() } catch (e: Exception) { "0" },
+                        icon = Icons.Default.CheckCircle
                     )
                     
-                    CompactStatItem(
+                    StatItem(
                         title = "Inactive",
-                        value = state.events.count { !it.isActive }.toString(),
-                        color = MaterialTheme.colorScheme.error
+                        value = try { state.events.count { !it.isActive }.toString() } catch (e: Exception) { "0" },
+                        icon = Icons.Default.Cancel
                     )
                 }
             }
             
-            // Success/Error Messages
+            // Messages
             state.creationMessage?.let { message ->
-                CleanAlert(
+                Spacer(modifier = Modifier.height(16.dp))
+                AlertCard(
                     message = message,
-                    isError = false,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                    type = AlertType.Success
+                ) {
+                    viewModel.clearMessages()
+                }
             }
             
             state.error?.let { error ->
-                CleanAlert(
+                Spacer(modifier = Modifier.height(16.dp))
+                AlertCard(
                     message = error,
-                    isError = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                    type = AlertType.Error
+                ) {
+                    viewModel.clearMessages()
+                }
             }
             
-            // Events List Header
-            if (filterActiveOnly) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            localErrorMessage?.let { error ->
+                Spacer(modifier = Modifier.height(16.dp))
+                AlertCard(
+                    message = error,
+                    type = AlertType.Error
                 ) {
-                    FilterChip(
-                        selected = true,
-                        onClick = { filterActiveOnly = false },
-                        label = { Text("Active Only", style = MaterialTheme.typography.labelMedium) }
-                    )
+                    localErrorMessage = null
                 }
             }
             
@@ -189,43 +185,64 @@ fun EventManagementScreen(
                         .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 2.dp
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 2.dp
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Text(
+                            "Loading events...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             } else {
-                val filteredEvents = state.events
-                    .filter { event ->
-                        val matchesSearch = if (searchQuery.isEmpty()) {
-                            true
-                        } else {
-                            event.name.contains(searchQuery, ignoreCase = true) ||
-                            event.id.contains(searchQuery, ignoreCase = true)
-                        }
-                        val matchesFilter = if (filterActiveOnly) {
-                            event.isActive
-                        } else {
-                            true
-                        }
-                        matchesSearch && matchesFilter
+                // Get filtered events
+                val filteredEvents = state.events.filter { event ->
+                    val matchesSearch = if (searchQuery.isEmpty()) {
+                        true
+                    } else {
+                        event.name.contains(searchQuery, ignoreCase = true) ||
+                        event.id.contains(searchQuery, ignoreCase = true)
                     }
+                    val matchesFilter = if (filterActiveOnly) {
+                        event.isActive
+                    } else {
+                        true
+                    }
+                    matchesSearch && matchesFilter
+                }
                 
                 if (filteredEvents.isEmpty()) {
-                    CleanEmptyState(
+                    EmptyEventsCard(
                         isFiltered = searchQuery.isNotEmpty() || filterActiveOnly,
                         onCreateEvent = { showAddDialog = true }
                     )
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(filteredEvents) { event ->
-                            CleanEventCard(
+                            ModernEventCard(
                                 event = event,
-                                onEventClick = { onNavigateToEventDetail(event.id) },
+                                onEventClick = { 
+                                    android.util.Log.d("EventManagementScreen", "Navigating to event detail with ID: '${event.id}'")
+                                    // Additional validation before navigation
+                                    if (event.id.isNotBlank()) {
+                                        // Trim the event ID to ensure no whitespace issues
+                                        val cleanId = event.id.trim()
+                                        android.util.Log.d("EventManagementScreen", "Using cleaned event ID for navigation: '$cleanId'")
+                                        onNavigateToEventDetail(cleanId) 
+                                    } else {
+                                        android.util.Log.e("EventManagementScreen", "Cannot navigate to event detail: Event ID is blank")
+                                    }
+                                },
                                 onEditClick = {
                                     selectedEvent = event
                                     showEditDialog = true
@@ -245,7 +262,7 @@ fun EventManagementScreen(
         }
     }
     
-    // Dialog Handlers
+    // Dialogs
     if (showAddDialog) {
         CreateEventDialog(
             isLoading = state.isCreating,
@@ -285,7 +302,7 @@ fun EventManagementScreen(
     }
     
     if (showDeleteDialog && selectedEvent != null) {
-        CleanDeleteDialog(
+        DeleteEventDialog(
             eventName = selectedEvent!!.name,
             onConfirm = {
                 viewModel.deleteEvent(selectedEvent!!.id)
@@ -314,7 +331,12 @@ fun ModernEventCard(
     ModernCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onEventClick() }
+            .clickable { 
+                android.util.Log.d("EventManagementScreen", "Event card clicked with ID: ${event.id}")
+                // Navigate to event details
+                android.util.Log.d("EventManagementScreen", "Navigating to event details for: ${event.name} with ID: ${event.id}")
+                onEventClick() 
+            }
     ) {
         Column {
             // Header with title and status
@@ -1571,7 +1593,7 @@ fun EditEventDialog(
 }
 
 @Composable
-fun DeleteConfirmationDialog(
+fun DeleteEventDialog(
     eventName: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit

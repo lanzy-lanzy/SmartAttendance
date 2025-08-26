@@ -6,9 +6,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.ml.smartattendance.data.entity.Event
 import dev.ml.smartattendance.domain.repository.AttendanceRepository
 import dev.ml.smartattendance.domain.repository.EventRepository
 import dev.ml.smartattendance.domain.repository.StudentRepository
+import dev.ml.smartattendance.domain.service.FirestoreService
 import dev.ml.smartattendance.presentation.screen.admin.AdminActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +30,7 @@ data class AdminDashboardMainState(
     val todayPresentCount: Int = 0,
     val pendingIssues: Int = 0,
     val recentActivities: List<AdminActivity> = emptyList(),
+    val upcomingEvents: List<Event> = emptyList(),  // Add upcoming events list
     val isLoading: Boolean = false,
     val error: String? = null
 )
@@ -36,7 +39,8 @@ data class AdminDashboardMainState(
 class AdminDashboardMainViewModel @Inject constructor(
     private val studentRepository: StudentRepository,
     private val eventRepository: EventRepository,
-    private val attendanceRepository: AttendanceRepository
+    private val attendanceRepository: AttendanceRepository,
+    private val firestoreService: FirestoreService
 ) : ViewModel() {
     
     private val _state = MutableStateFlow(AdminDashboardMainState())
@@ -47,28 +51,76 @@ class AdminDashboardMainViewModel @Inject constructor(
             try {
                 _state.value = _state.value.copy(isLoading = true, error = null)
                 
-                // Load student statistics
-                val allStudents = studentRepository.getAllActiveStudents().first()
+                // Load student statistics directly from Firebase
+                val firebaseStudents = firestoreService.getAllStudents()
+                
+                // Also fetch users with STUDENT role from users collection
+                val allUsers = firestoreService.getAllUsers()
+                val studentUsers = allUsers.filter { it.role == dev.ml.smartattendance.domain.model.UserRole.STUDENT }
+                
+                // Combine both sources
+                val studentIds = firebaseStudents.map { it.id }.toSet()
+                val studentsFromUsers = studentUsers
+                    .filter { it.studentId != null && !studentIds.contains(it.studentId) }
+                    .map { user ->
+                        dev.ml.smartattendance.data.entity.Student(
+                            id = user.studentId ?: "",
+                            name = user.name,
+                            course = user.course ?: "Unassigned",
+                            enrollmentDate = user.enrollmentDate ?: System.currentTimeMillis(),
+                            role = user.role,
+                            isActive = user.isActive,
+                            email = user.email
+                        )
+                    }
+                
+                val allStudents = firebaseStudents + studentsFromUsers
+                
+                // Cache students locally
+                if (allStudents.isNotEmpty()) {
+                    studentRepository.insertStudents(allStudents)
+                }
+                
                 val totalStudents = allStudents.size
                 val activeStudents = allStudents.count { it.isActive }
                 
-                // Load event statistics
-                val allEvents = eventRepository.getAllEvents().first()
+                // Load event statistics directly from Firebase
+                val firebaseEvents = firestoreService.getAllEvents()
+                val allEvents = firebaseEvents
+                
+                // Cache events locally
+                if (allEvents.isNotEmpty()) {
+                    eventRepository.insertEvents(allEvents)
+                }
+                
                 val totalEvents = allEvents.size
                 val activeEvents = allEvents.count { it.isActive }
+                
+                // Get upcoming events (events that haven't started yet)
+                val currentTime = System.currentTimeMillis()
+                val upcomingEvents = allEvents.filter { 
+                    it.isActive && it.startTime > currentTime 
+                }.sortedBy { it.startTime }.take(5) // Take the 5 closest upcoming events
                 
                 // Load today's attendance data (simplified for demo)
                 val todayStart = LocalDate.now().atStartOfDay().toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
                 val todayEnd = LocalDate.now().atTime(23, 59, 59).toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
                 
                 val todayAttendance = try {
-                    attendanceRepository.getAttendanceInDateRange(todayStart, todayEnd)
+                    // Try to get attendance records from Firebase first
+                    val allAttendanceRecords = firestoreService.getAllAttendanceRecords()
+                    allAttendanceRecords.filter { it.timestamp in todayStart..todayEnd }
                 } catch (e: Exception) {
-                    emptyList()
+                    try {
+                        // Fall back to repository if Firebase fails
+                        attendanceRepository.getAttendanceInDateRange(todayStart, todayEnd)
+                    } catch (fallbackEx: Exception) {
+                        emptyList()
+                    }
                 }
                 
                 val todayPresentCount = todayAttendance.size
-                val todayAttendanceRate = if (totalStudents > 0) {
+                val todayAttendanceRate = if (totalStudents > 0 && totalStudents > 0) {
                     (todayPresentCount.toDouble() / totalStudents) * 100
                 } else 0.0
                 
@@ -87,6 +139,7 @@ class AdminDashboardMainViewModel @Inject constructor(
                     todayPresentCount = todayPresentCount,
                     pendingIssues = pendingIssues,
                     recentActivities = recentActivities,
+                    upcomingEvents = upcomingEvents,
                     isLoading = false
                 )
                 

@@ -36,12 +36,90 @@ fun ComprehensiveEventDetailScreen(
     var showPenaltyDialog by remember { mutableStateOf(false) }
     var selectedStudent by remember { mutableStateOf<DetailedAttendanceRecord?>(null) }
     
-    LaunchedEffect(eventId) {
-        viewModel.loadEventDetails(eventId)
-        viewModel.loadAttendanceRecords(eventId)
-        viewModel.startRealTimeUpdates(eventId)
+    // Check if eventId is valid
+    val isEventIdValid = eventId.isNotBlank()
+    android.util.Log.d("ComprehensiveEventDetailScreen", "Screen created with event ID: '$eventId', is valid: $isEventIdValid")
+    
+    // Force an immediate refresh on first render with the supplied eventId
+    LaunchedEffect(Unit) {
+        if (isEventIdValid) {
+            android.util.Log.d("ComprehensiveEventDetailScreen", "Initial load for event ID: '$eventId'")
+            
+            // Try direct Firebase call first for faster loading - using multiple approaches
+            try {
+                // Approach 1: Through FirebaseModule
+                android.util.Log.d("ComprehensiveEventDetailScreen", "Trying direct Firebase module approach")
+                val firestoreService = dev.ml.smartattendance.data.service.FirebaseModule.provideFirestoreService()
+                val event = firestoreService.getEvent(eventId)
+                android.util.Log.d("ComprehensiveEventDetailScreen", "Direct Firebase module result for '$eventId': ${event != null}")
+                if (event != null) {
+                    android.util.Log.d("ComprehensiveEventDetailScreen", "Found event name: '${event.name}'")
+                    
+                    // Pre-load the event into state to speed up rendering
+                    viewModel.preloadEvent(event)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ComprehensiveEventDetailScreen", "Error in direct Firebase module call: ${e.message}")
+            }
+            
+            try {
+                // Approach 2: Through direct Firestore query
+                android.util.Log.d("ComprehensiveEventDetailScreen", "Trying direct Firestore document lookup")
+                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val docRef = db.collection("events").document(eventId)
+                docRef.get().addOnSuccessListener { document ->
+                    if (document != null && document.exists()) {
+                        android.util.Log.d("ComprehensiveEventDetailScreen", "Direct Firestore document exists: ${document.id}")
+                        val data = document.data
+                        android.util.Log.d("ComprehensiveEventDetailScreen", "Document data: $data")
+                        
+                        // Try to manually convert to Event object
+                        try {
+                            val event = document.toObject(dev.ml.smartattendance.data.entity.Event::class.java)
+                            if (event != null) {
+                                android.util.Log.d("ComprehensiveEventDetailScreen", "Successfully converted document to Event: ${event.name}")
+                                
+                                // Fix ID if needed
+                                val fixedEvent = if (event.id.isBlank()) event.copy(id = eventId) else event
+                                
+                                // Pre-load the event into state to speed up rendering
+                                viewModel.preloadEvent(fixedEvent)
+                            }
+                        } catch (convEx: Exception) {
+                            android.util.Log.e("ComprehensiveEventDetailScreen", "Error converting document: ${convEx.message}")
+                        }
+                    } else {
+                        android.util.Log.w("ComprehensiveEventDetailScreen", "Direct Firestore document doesn't exist")
+                    }
+                }.addOnFailureListener { e ->
+                    android.util.Log.e("ComprehensiveEventDetailScreen", "Direct Firestore lookup failed: ${e.message}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ComprehensiveEventDetailScreen", "Error in direct Firestore query: ${e.message}")
+            }
+            
+            // Then trigger the ViewModel methods
+            viewModel.refreshData(eventId) // Use refresh directly which does a full reload
+        }
     }
     
+    // Add a retry mechanism
+    var retryCount by remember { mutableStateOf(0) }
+    LaunchedEffect(retryCount) {
+        if (retryCount > 0 && isEventIdValid) {
+            android.util.Log.d("ComprehensiveEventDetailScreen", "Retrying event load (attempt $retryCount)")
+            viewModel.refreshData(eventId)
+        }
+    }
+    
+    // Start real-time updates after initial load
+    LaunchedEffect(eventId) {
+        if (isEventIdValid) {
+            android.util.Log.d("ComprehensiveEventDetailScreen", "Starting real-time updates for event ID: '$eventId'")
+            viewModel.startRealTimeUpdates(eventId)
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             viewModel.stopRealTimeUpdates()
@@ -55,11 +133,19 @@ fun ComprehensiveEventDetailScreen(
                 onNavigateBack = onNavigateBack,
                 actions = {
                     // Refresh
-                    IconButton(onClick = { viewModel.refreshData(eventId) }) {
+                    IconButton(onClick = { 
+                        if (isEventIdValid) {
+                            viewModel.refreshData(eventId)
+                        }
+                    }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                     // Export
-                    IconButton(onClick = { viewModel.exportAttendanceData(eventId) }) {
+                    IconButton(onClick = { 
+                        if (isEventIdValid) {
+                            viewModel.exportAttendanceData(eventId)
+                        }
+                    }) {
                         Icon(Icons.Default.FileDownload, contentDescription = "Export")
                     }
                     // Settings
@@ -79,14 +165,80 @@ fun ComprehensiveEventDetailScreen(
             }
         }
     ) { paddingValues ->
-        if (state.isLoading) {
+        if (!isEventIdValid) {
+            // Handle invalid event ID
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.Error,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Invalid Event ID",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "The event ID provided is invalid. Please go back and try again.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Button(onClick = onNavigateBack) {
+                        Text("Go Back")
+                    }
+                }
+            }
+        } else if (state.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Loading event details...",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    
+                    if (state.error != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = state.error ?: "Error loading data",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = {
+                                android.util.Log.d("ComprehensiveEventDetailScreen", "Retry clicked for event ID: '$eventId'")
+                                retryCount++
+                            }
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Retry")
+                        }
+                    }
+                }
             }
         } else if (state.event == null) {
             Box(
@@ -95,7 +247,8 @@ fun ComprehensiveEventDetailScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, 
+                       modifier = Modifier.padding(horizontal = 32.dp)) {
                     Icon(
                         Icons.Default.EventBusy,
                         contentDescription = null,
@@ -110,11 +263,30 @@ fun ComprehensiveEventDetailScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "The requested event could not be found.",
+                        text = "The requested event with ID '$eventId' could not be found. This may be because the event was deleted or there's an issue with the connection to Firebase.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Button(
+                        onClick = { 
+                            android.util.Log.d("ComprehensiveEventDetailScreen", "Manual refresh clicked for event ID: '$eventId'")
+                            retryCount++
+                        }
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Refresh")
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    OutlinedButton(onClick = onNavigateBack) {
+                        Text("Go Back")
+                    }
                 }
             }
         } else {
@@ -193,7 +365,7 @@ fun ComprehensiveEventDetailScreen(
                         EmptyAttendanceCard()
                     }
                 } else {
-                    items(state.filteredAttendanceRecords) { record ->
+                    items(state.filteredAttendanceRecords) { record -> 
                         ComprehensiveAttendanceRecordCard(
                             record = record,
                             onEditAttendance = { 
@@ -221,7 +393,9 @@ fun ComprehensiveEventDetailScreen(
                 selectedStudent = null
             },
             onMarkAttendance = { studentId, status, notes ->
-                viewModel.markManualAttendance(eventId, studentId, status, notes)
+                if (isEventIdValid) {
+                    viewModel.markManualAttendance(eventId, studentId, status, notes)
+                }
                 showAttendanceDialog = false
                 selectedStudent = null
             }

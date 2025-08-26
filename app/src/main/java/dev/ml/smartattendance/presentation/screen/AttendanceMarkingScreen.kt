@@ -23,6 +23,7 @@ import dev.ml.smartattendance.domain.model.biometric.BiometricCapability
 import dev.ml.smartattendance.domain.model.biometric.BiometricError
 import dev.ml.smartattendance.presentation.viewmodel.AttendanceViewModel
 import dev.ml.smartattendance.ui.components.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -46,13 +47,77 @@ fun AttendanceMarkingScreen(
         BiometricAuthenticatorImpl(context)
     }
     
+    // Auth service for getting current user
+    val authService = remember {
+        try {
+            dev.ml.smartattendance.data.service.FirebaseModule.provideAuthService()
+        } catch (e: Exception) {
+            android.util.Log.e("AttendanceMarkingScreen", "Error getting auth service: ${e.message}", e)
+            null
+        }
+    }
+    
     var currentStep by remember { mutableStateOf(AttendanceStep.EVENT_INFO) }
     var locationValidated by remember { mutableStateOf(false) }
     var biometricValidated by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
     
+    // Event loading state
+    var isLoadingEvent by remember { mutableStateOf(true) }
+    var hasAttemptedLoad by remember { mutableStateOf(false) }
+    
+    // Show error dialog for critical errors
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    
     LaunchedEffect(eventId) {
-        viewModel.loadCurrentEvents()
+        // Try to load events multiple times to ensure Firebase data is fetched
+        isLoadingEvent = true
+        hasAttemptedLoad = true
+        var retryCount = 0
+        var success = false
+        
+        while (retryCount < 5 && !success) {
+            viewModel.loadCurrentEvents()
+            
+            // Short delay to allow Firebase data to load - increasing delay with each retry
+            kotlinx.coroutines.delay(300L * (retryCount + 1))
+            
+            // Check if the event is loaded
+            if (state.currentEvents.any { it.id == eventId }) {
+                success = true
+                android.util.Log.d("AttendanceMarkingScreen", "Successfully loaded event after $retryCount retries")
+            } else {
+                retryCount++
+                android.util.Log.d("AttendanceMarkingScreen", "Retry $retryCount: Event not found yet, trying again")
+            }
+        }
+        
+        // Stop loading state regardless of success to show either event or error UI
+        isLoadingEvent = false
+        android.util.Log.d("AttendanceMarkingScreen", "Finished loading attempts. Success: $success")
+    }
+
+    // Show error dialog if needed
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showErrorDialog = false
+                onNavigateBack()
+            },
+            title = { Text("Error") },
+            text = { Text(errorMessage) },
+            confirmButton = {
+                Button(
+                    onClick = { 
+                        showErrorDialog = false
+                        onNavigateBack()
+                    }
+                ) {
+                    Text("Go Back")
+                }
+            }
+        )
     }
     
     Scaffold(
@@ -63,8 +128,8 @@ fun AttendanceMarkingScreen(
             )
         }
     ) { paddingValues ->
-        if (event == null) {
-            // Event not found
+        if (isLoadingEvent) {
+            // Show loading state while waiting for event data
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -72,7 +137,43 @@ fun AttendanceMarkingScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Loading Event Data...",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "Please wait while we retrieve the event information from the server.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else if (event == null && hasAttemptedLoad) {
+            // Event not found after loading attempts
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(16.dp)
                 ) {
                     Icon(
                         Icons.Default.EventBusy,
@@ -92,7 +193,7 @@ fun AttendanceMarkingScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     Text(
-                        text = "The event you're trying to access could not be found.",
+                        text = "The event you're trying to access could not be found. This may happen if the event was recently deleted or if there are synchronization issues.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -100,12 +201,38 @@ fun AttendanceMarkingScreen(
                     
                     Spacer(modifier = Modifier.height(24.dp))
                     
-                    Button(onClick = onNavigateBack) {
+                    Button(onClick = {
+                        // Try loading the events one more time before going back
+                        scope.launch {
+                            isLoadingEvent = true
+                            viewModel.loadCurrentEvents()
+                            kotlinx.coroutines.delay(1000L) // Increased delay for better reliability
+                            isLoadingEvent = false
+                            
+                            // If still not found, go back
+                            if (state.currentEvents.none { it.id == eventId }) {
+                                onNavigateBack()
+                            }
+                        }
+                    }) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Try Again")
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    OutlinedButton(onClick = onNavigateBack) {
                         Text("Go Back")
                     }
                 }
             }
-        } else {
+        } else if (event != null) {
+            // Event found - display normal content
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -166,24 +293,92 @@ fun AttendanceMarkingScreen(
                             onMarkAttendance = {
                                 scope.launch {
                                     isProcessing = true
-                                    // Using the sample student ID that exists in the database
-                                    viewModel.markAttendance("STUDENT001", eventId)
-                                    isProcessing = false
-                                    onAttendanceMarked()
+                                    android.util.Log.d("AttendanceMarkingScreen", "Starting attendance marking process for event: '${event.id}'")
+                                    
+                                    try {
+                                        // Get the current user's ID from authentication
+                                        val currentUser = authService?.getCurrentUser()
+                                        
+                                        android.util.Log.d("AttendanceMarkingScreen", "Current user from auth service: ${currentUser?.uid}, name: ${currentUser?.name}, role: ${currentUser?.role}")
+                                        
+                                        if (currentUser == null) {
+                                            android.util.Log.e("AttendanceMarkingScreen", "Current user is null. Firebase authentication may have failed.")
+                                            errorMessage = "Authentication error. Please log out and log in again."
+                                            showErrorDialog = true
+                                            isProcessing = false
+                                            return@launch
+                                        }
+                                        
+                                        // Extract student ID from currentUser
+                                        val studentId = currentUser.studentId
+                                        
+                                        if (studentId.isNullOrBlank()) {
+                                            // Handle case where student ID is not available
+                                            android.util.Log.e("AttendanceMarkingScreen", "Student ID not found in current user. User role: ${currentUser.role}, User ID: ${currentUser.uid}")
+                                            errorMessage = "Your student ID is not available. Please make sure you're registered as a student with a valid student ID."
+                                            showErrorDialog = true
+                                            isProcessing = false
+                                            return@launch
+                                        }
+                                        
+                                        android.util.Log.d("AttendanceMarkingScreen", "Using student ID from authenticated user: '$studentId'")
+                                        
+                                        // Mark attendance using Firebase
+                                        viewModel.markAttendance(studentId, eventId)
+                                        
+                                        // Wait longer for the viewModel to process and update state
+                                        kotlinx.coroutines.delay(2000)
+                                        
+                                        // Check the final state after marking attendance
+                                        val currentState = viewModel.state.value
+                                        android.util.Log.d("AttendanceMarkingScreen", "State after marking: error=${currentState.error}, message=${currentState.attendanceMessage}")
+                                        
+                                        if (currentState.error != null) {
+                                            // There was an error
+                                            errorMessage = currentState.error
+                                            showErrorDialog = true
+                                            android.util.Log.e("AttendanceMarkingScreen", "Error marking attendance: $errorMessage")
+                                        } else if (currentState.attendanceMessage != null) {
+                                            // Success case - attendance was marked
+                                            android.util.Log.d("AttendanceMarkingScreen", "Attendance marked successfully")
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "Attendance marked successfully in Firebase!",
+                                                android.widget.Toast.LENGTH_LONG
+                                            ).show()
+                                            onNavigateBack()
+                                        } else {
+                                            // Unexpected state - neither error nor success message
+                                            android.util.Log.w("AttendanceMarkingScreen", "Unexpected state after marking attendance")
+                                            errorMessage = "Unexpected error occurred while marking attendance. Please try again."
+                                            showErrorDialog = true
+                                        }
+                                    } catch (e: Exception) {
+                                        // Catch any exceptions during the process
+                                        android.util.Log.e("AttendanceMarkingScreen", "Exception during attendance marking: ${e.message}", e)
+                                        errorMessage = "Error: ${e.message ?: "Unknown error occurred"}"
+                                        showErrorDialog = true
+                                    } finally {
+                                        isProcessing = false
+                                    }
                                 }
                             },
-                            onBack = { currentStep = AttendanceStep.BIOMETRIC_AUTH }
+                            onBack = { currentStep = AttendanceStep.BIOMETRIC_AUTH },
+                            // Pass the attendance marked status
+                            isAttendanceMarked = state.markedEventIds.contains(eventId)
                         )
                     }
                 }
                 
-                // Error handling
+                // Error handling (for non-critical errors)
                 state.error?.let { error ->
-                    Spacer(modifier = Modifier.height(16.dp))
-                    AlertCard(
-                        message = error,
-                        type = AlertType.Error
-                    )
+                    if (!showErrorDialog) {  // Only show inline error if not showing dialog
+                        Spacer(modifier = Modifier.height(16.dp))
+                        AlertCard(
+                            message = error,
+                            type = AlertType.Error
+                        )
+                    }
                 }
                 
                 // Success message
@@ -194,6 +389,19 @@ fun AttendanceMarkingScreen(
                         type = AlertType.Success
                     )
                 }
+            }
+        }
+        
+        // Handle the case where we haven't attempted to load yet (initial state)
+        // This should rarely happen but just in case
+        if (!isLoadingEvent && !hasAttemptedLoad) {
+            // Trigger initial load
+            LaunchedEffect(Unit) {
+                isLoadingEvent = true
+                hasAttemptedLoad = true
+                viewModel.loadCurrentEvents()
+                kotlinx.coroutines.delay(500L)
+                isLoadingEvent = false
             }
         }
     }
@@ -883,9 +1091,16 @@ fun MarkAttendanceStep(
     event: Event,
     isProcessing: Boolean,
     onMarkAttendance: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isAttendanceMarked: Boolean = false
 ) {
     val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+    val context = LocalContext.current
+    
+    // For logging the attendance marking process
+    LaunchedEffect(Unit) {
+        android.util.Log.d("MarkAttendanceStep", "Initializing attendance marking for event: '${event.id}' - '${event.name}'")
+    }
     
     Column {
         Text(
@@ -955,6 +1170,34 @@ fun MarkAttendanceStep(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "Event ID: ${event.id}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.CloudDone,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Using Firebase for attendance",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
         
@@ -974,23 +1217,57 @@ fun MarkAttendanceStep(
                 Text("Back")
             }
             
-            Button(
-                onClick = onMarkAttendance,
-                enabled = !isProcessing,
-                modifier = Modifier.weight(1f)
-            ) {
-                if (isProcessing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
+            // Modified button to handle attendance marked state
+            if (isAttendanceMarked) {
+                // Show disabled "Already Marked" button
+                Button(
+                    onClick = { },
+                    enabled = false,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Marking...")
-                } else {
-                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Mark Attendance")
+                    Text("Already Marked")
+                }
+            } else {
+                // Show regular "Mark Attendance" button
+                Button(
+                    onClick = {
+                        android.util.Log.d("MarkAttendanceStep", "Marking attendance for event: '${event.id}'")
+                        // Show toast for user feedback
+                        android.widget.Toast.makeText(
+                            context,
+                            "Marking attendance in Firebase...",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                        onMarkAttendance()
+                    },
+                    enabled = !isProcessing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Marking...")
+                    } else {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Mark Attendance")
+                    }
                 }
             }
         }

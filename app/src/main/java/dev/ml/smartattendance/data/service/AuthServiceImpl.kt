@@ -60,6 +60,9 @@ class AuthServiceImpl @Inject constructor(
                 // Send email verification
                 firebaseUser.sendEmailVerification().await()
                 
+                // Set enrollment date
+                val enrollmentDate = System.currentTimeMillis()
+                
                 // Create user profile in Firestore
                 val user = User(
                     uid = firebaseUser.uid,
@@ -70,16 +73,32 @@ class AuthServiceImpl @Inject constructor(
                     studentId = request.studentId,
                     course = request.course,
                     adminLevel = request.adminLevel,
-                    enrollmentDate = if (request.role.name == "STUDENT") System.currentTimeMillis() else null
+                    enrollmentDate = if (request.role.name == "STUDENT") enrollmentDate else null
                 )
                 
                 val created = firestoreService.createUser(user)
-                if (created) {
+                
+                // If the user is a student, also create a student record in students collection
+                var studentCreated = true
+                if (request.role == dev.ml.smartattendance.domain.model.UserRole.STUDENT && request.studentId != null && request.course != null) {
+                    val student = dev.ml.smartattendance.data.entity.Student(
+                        id = request.studentId,
+                        name = request.name,
+                        course = request.course,
+                        enrollmentDate = enrollmentDate,
+                        role = request.role,
+                        isActive = true,
+                        email = request.email
+                    )
+                    studentCreated = firestoreService.createStudent(student)
+                }
+                
+                if (created && studentCreated) {
                     AuthResult(user = user, isSuccess = true)
                 } else {
                     // Cleanup Firebase user if Firestore creation fails
                     firebaseUser.delete().await()
-                    AuthResult(isSuccess = false, errorMessage = "Failed to create user profile")
+                    AuthResult(isSuccess = false, errorMessage = "Failed to create user profile or student record")
                 }
             } else {
                 AuthResult(isSuccess = false, errorMessage = "Failed to create user account")

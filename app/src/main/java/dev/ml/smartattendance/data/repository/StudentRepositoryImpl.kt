@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.catch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,12 +19,8 @@ class StudentRepositoryImpl @Inject constructor(
 ) : StudentRepository {
     
     override fun getAllActiveStudents(): Flow<List<Student>> {
-        // Cloud-first approach: Get active students from Firebase with local fallback
+        // Firebase-first approach: Get active students from Firebase with local fallback
         return firestoreService.getStudentsFlow()
-            .onStart {
-                // Start with local data for immediate display
-                emit(studentDao.getAllActiveStudents().first())
-            }
             .map { firebaseStudents ->
                 val activeStudents = firebaseStudents.filter { it.isActive }
                 if (activeStudents.isNotEmpty()) {
@@ -32,19 +28,31 @@ class StudentRepositoryImpl @Inject constructor(
                     studentDao.insertStudents(firebaseStudents)
                     activeStudents
                 } else {
-                    // Fallback to local data
+                    // Fallback to local data only if Firebase returns empty list
                     studentDao.getAllActiveStudents().first()
                 }
+            }
+            .catch { e ->
+                // If Firebase throws an error, fallback to local
+                emit(studentDao.getAllActiveStudents().first())
             }
     }
     
     override suspend fun getStudentById(studentId: String): Student? {
-        // Try Firebase first, fallback to local
-        return try {
-            firestoreService.getStudent(studentId) ?: studentDao.getStudentById(studentId)
+        // Try Firebase first
+        try {
+            val firebaseStudent = firestoreService.getStudent(studentId)
+            if (firebaseStudent != null) {
+                // Cache the student locally for future use
+                studentDao.insertStudent(firebaseStudent)
+                return firebaseStudent
+            }
         } catch (e: Exception) {
-            studentDao.getStudentById(studentId)
+            // If Firebase fails, fall back to local cache
         }
+        
+        // Only try local if Firebase fails or returns null
+        return studentDao.getStudentById(studentId)
     }
     
     override suspend fun getStudentsByCourse(course: String): List<Student> {

@@ -9,7 +9,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,12 +22,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import dev.ml.smartattendance.data.entity.Event
 import dev.ml.smartattendance.presentation.viewmodel.admin.AdminDashboardMainViewModel
 import dev.ml.smartattendance.presentation.viewmodel.AuthViewModel
 import dev.ml.smartattendance.ui.components.*
 import dev.ml.smartattendance.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import dev.ml.smartattendance.presentation.screen.admin.AdminActivity
 
 @Composable
 fun AdminDashboardMainScreen(
@@ -153,12 +161,28 @@ fun AdminDashboardMainScreen(
                     .padding(horizontal = 16.dp)
                     .alpha(contentAlpha)
             ) {
-                Text(
-                    text = "System Overview",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+                // Add refresh action
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "System Overview",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    
+                    IconButton(onClick = { viewModel.refreshData() }) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 if (state.isLoading) {
                     Row(
@@ -265,7 +289,7 @@ fun AdminDashboardMainScreen(
                         AdminQuickActionCard(
                             title = "Manage Events",
                             description = "Create and manage attendance events",
-                            icon = Icons.Default.EventNote,
+                            icon = Icons.AutoMirrored.Filled.EventNote,
                             color = Color(0xFF4CAF50),
                             onClick = onNavigateToEvents
                         )
@@ -335,17 +359,68 @@ fun AdminDashboardMainScreen(
                         Column(
                             modifier = Modifier.padding(16.dp)
                         ) {
-                            state.recentActivities.take(5).forEach { activity ->
+                            val recentActivities = state.recentActivities.take(5)
+                            recentActivities.forEach { activity ->
                                 AdminActivityItem(
                                     activity = activity,
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                if (activity != state.recentActivities.take(5).last()) {
-                                    Divider(
+                                if (activity != recentActivities.lastOrNull()) {
+                                    HorizontalDivider(
                                         modifier = Modifier.padding(vertical = 8.dp),
                                         color = MaterialTheme.colorScheme.outlineVariant
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Upcoming Events Section
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .alpha(contentAlpha)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Upcoming Events",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    
+                    TextButton(onClick = onNavigateToEvents) {
+                        Text("View All")
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (state.upcomingEvents.isEmpty()) {
+                    AdminEmptyStateCard(
+                        title = "No Upcoming Events",
+                        description = "Future events will appear here",
+                        icon = Icons.Default.Event
+                    )
+                } else {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(horizontal = 0.dp)
+                    ) {
+                        item {
+                            state.upcomingEvents.forEach { event ->
+                                AdminEventCard(
+                                    event = event,
+                                    onClick = { onNavigateToEvents() }
+                                )
                             }
                         }
                     }
@@ -561,11 +636,92 @@ fun AdminActivityItem(
     }
 }
 
-// Data classes for the admin dashboard
-data class AdminActivity(
-    val title: String,
-    val description: String,
-    val timeAgo: String,
-    val icon: ImageVector,
-    val color: Color
-)
+@Composable
+fun AdminEventCard(
+    event: Event,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val dateFormat = SimpleDateFormat("EEE, MMM d", Locale.getDefault())
+    val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+    
+    val eventDate = dateFormat.format(Date(event.startTime))
+    val eventTime = timeFormat.format(Date(event.startTime))
+    
+    Card(
+        modifier = modifier
+            .width(220.dp)
+            .height(160.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        onClick = onClick
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = event.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = eventDate,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Text(
+                    text = eventTime,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.width(4.dp))
+                    
+                    Text(
+                        text = "${event.geofenceRadius.toInt()}m radius",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = "View Details",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+

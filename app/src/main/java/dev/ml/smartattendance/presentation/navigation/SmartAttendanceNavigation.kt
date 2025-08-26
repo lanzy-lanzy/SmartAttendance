@@ -151,6 +151,9 @@ fun SmartAttendanceNavigation(
                 },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
+                },
+                onNavigateToEventDetail = { eventId ->
+                    navController.navigate(Screen.EventDetail.createRoute(eventId))
                 }
             )
         }
@@ -180,8 +183,9 @@ fun SmartAttendanceNavigation(
                         navController.popBackStack()
                     },
                     onAttendanceMarked = {
-                        // Navigate back to dashboard after successful attendance marking
-                        navController.popBackStack(Screen.Dashboard.route, false)
+                        // Navigate back to events list after successful attendance marking
+                        // so user can see the "Already Marked" status
+                        navController.popBackStack(Screen.Events.route, false)
                     }
                 )
             }
@@ -215,6 +219,7 @@ fun SmartAttendanceNavigation(
                         navController.popBackStack()
                     },
                     onNavigateToEventDetail = { eventId ->
+                        android.util.Log.d("Navigation", "EventManagement: Navigating to event detail with ID: $eventId")
                         navController.navigate(Screen.EventDetail.createRoute(eventId))
                     }
                 )
@@ -224,16 +229,41 @@ fun SmartAttendanceNavigation(
         composable(Screen.EventDetail.route) { backStackEntry ->
             // Use the current user role
             val role = currentUserRole ?: UserRole.STUDENT
-            
-            // Only allow admins to access this screen
-            if (role == UserRole.ADMIN) {
-                val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
-                dev.ml.smartattendance.presentation.screen.admin.ComprehensiveEventDetailScreen(
-                    eventId = eventId,
-                    onNavigateBack = {
-                        navController.popBackStack()
-                    }
-                )
+
+            // Extract event ID properly from navigation arguments with better error handling
+            val rawEventId = backStackEntry.arguments?.getString("eventId")
+            val eventId = rawEventId?.trim() ?: ""
+
+            // Log the event ID being processed
+            android.util.Log.d("Navigation", "Processing navigation to event details for ID: '$eventId'")
+
+            if (eventId.isNotEmpty()) {
+                if (role == UserRole.ADMIN) {
+                    // Admin view with comprehensive management features
+                    dev.ml.smartattendance.presentation.screen.admin.ComprehensiveEventDetailScreen(
+                        eventId = eventId,
+                        onNavigateBack = {
+                            navController.popBackStack()
+                        }
+                    )
+                } else {
+                    // Student view with basic event details and attendance marking
+                    dev.ml.smartattendance.presentation.screen.StudentEventDetailScreen(
+                        eventId = eventId,
+                        onNavigateBack = {
+                            navController.popBackStack()
+                        },
+                        onNavigateToAttendanceMarking = { id ->
+                            navController.navigate(Screen.AttendanceMarking.createRoute(id))
+                        }
+                    )
+                }
+            } else {
+                // Handle invalid event ID by showing an error and navigating back
+                android.util.Log.e("Navigation", "Invalid event ID in navigation: '$rawEventId'")
+                LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
             }
         }
         
@@ -304,6 +334,9 @@ fun SmartAttendanceNavigation(
                     },
                     onNavigateToDashboard = {
                         navController.navigate(Screen.Dashboard.route)
+                    },
+                    onNavigateToEventDetail = { eventId ->
+                        navController.navigate(Screen.EventDetail.createRoute(eventId))
                     }
                 )
             }

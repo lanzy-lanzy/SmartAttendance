@@ -153,9 +153,10 @@ fun ModernBottomNavigation(
                 selected = currentRoute == item.route,
                 onClick = {
                     try {
+                        // Wrap in try-catch to prevent app crashes during navigation
                         onNavigate(item.route)
                     } catch (e: Exception) {
-                        // Prevent crashes from navigation errors
+                        // Log error but don't crash
                         e.printStackTrace()
                     }
                 },

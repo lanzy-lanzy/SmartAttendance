@@ -78,23 +78,51 @@ fun AdminDashboardScreen(
                 userRole = UserRole.ADMIN,
                 onNavigate = { route ->
                     try {
+                        android.util.Log.d("AdminDashboardScreen", "Attempting to navigate to route: $route")
+                        // Safe navigation - check if the route exists in our navigation graph
+                        // before attempting to navigate to it
                         if (currentScreen != route) {
-                            bottomNavController.navigate(route) {
-                                // Use a simpler popUpTo strategy
-                                popUpTo(bottomNavController.graph.startDestinationId) {
-                                    saveState = true
+                            // Check if the route is for events management which needs special handling
+                            if (route == Screen.EventManagement.route) {
+                                bottomNavController.navigate(route) {
+                                    popUpTo("admin_main") {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
+                            } else {
+                                bottomNavController.navigate(route) {
+                                    // Use a simpler popUpTo strategy
+                                    popUpTo(bottomNavController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
+                            android.util.Log.d("AdminDashboardScreen", "Successfully navigated to route: $route")
+                        } else {
+                            android.util.Log.d("AdminDashboardScreen", "Already on route: $route, skipping navigation")
                         }
                     } catch (e: Exception) {
-                        // Handle navigation errors gracefully
+                        android.util.Log.e("AdminDashboardScreen", "Error navigating to route $route: ${e.message}", e)
+                        // Handle navigation errors gracefully with a more specific error handling approach
                         e.printStackTrace()
                         // Fallback: simple navigation without options
                         try {
-                            bottomNavController.navigate(route)
+                            // For events, make sure we're navigating to the correct destination
+                            if (route == Screen.EventManagement.route) {
+                                android.util.Log.d("AdminDashboardScreen", "Using fallback navigation for events")
+                                bottomNavController.popBackStack(bottomNavController.graph.startDestinationId, false)
+                                bottomNavController.navigate(route)
+                            } else {
+                                android.util.Log.d("AdminDashboardScreen", "Using simple fallback navigation")
+                                bottomNavController.navigate(route)
+                            }
+                            android.util.Log.d("AdminDashboardScreen", "Fallback navigation successful for route: $route")
                         } catch (fallbackError: Exception) {
+                            android.util.Log.e("AdminDashboardScreen", "Fallback navigation also failed for route $route: ${fallbackError.message}", fallbackError)
                             fallbackError.printStackTrace()
                         }
                     }

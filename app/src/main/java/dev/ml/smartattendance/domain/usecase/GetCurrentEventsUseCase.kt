@@ -33,6 +33,19 @@ class GetCurrentEventsUseCase @Inject constructor(
     }
     
     suspend fun getEventById(eventId: String): Event? {
-        return eventRepository.getEventById(eventId)
+        try {
+            // Make multiple attempts to fetch from Firebase
+            for (attempt in 1..3) {
+                val event = eventRepository.getEventById(eventId)
+                if (event != null) {
+                    return event
+                }
+                // Short delay before retrying
+                kotlinx.coroutines.delay(200)
+            }
+            return null
+        } catch (e: Exception) {
+            return null
+        }
     }
 }

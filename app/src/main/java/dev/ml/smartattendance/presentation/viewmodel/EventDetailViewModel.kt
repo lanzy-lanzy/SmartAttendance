@@ -38,19 +38,85 @@ class EventDetailViewModel @Inject constructor(
     
     fun loadEventDetails(eventId: String) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true)
+            // Reset state and set loading
+            _state.value = _state.value.copy(
+                isLoading = true,
+                error = null,
+                message = null
+            )
             
             try {
-                val event = firestoreService.getEvent(eventId)
-                _state.value = _state.value.copy(
-                    event = event,
-                    isLoading = false,
-                    error = if (event == null) "Event not found" else null
+                // Validate event ID with better error messages
+                if (eventId.isBlank()) {
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        error = "Invalid event ID: Empty or blank"
+                    )
+                    android.util.Log.e("EventDetailViewModel", "Invalid event ID: Empty or blank")
+                    return@launch
+                }
+                
+                android.util.Log.d("EventDetailViewModel", "Loading event details for ID: '$eventId'")
+                
+                // Try multiple sources for the event
+                // 1. Direct Firestore access
+                android.util.Log.d("EventDetailViewModel", "Attempting to fetch event from Firestore...")
+                var event = firestoreService.getEvent(eventId)
+                android.util.Log.d("EventDetailViewModel", "Firestore result: ${if (event != null) "Found event: ${event.name}" else "Event not found"}")
+                
+                if (event != null) {
+                    android.util.Log.d("EventDetailViewModel", "Successfully loaded event from Firestore: ${event.name} (ID: ${event.id})")
+                    _state.value = _state.value.copy(
+                        event = event,
+                        isLoading = false,
+                        error = null
+                    )
+                    return@launch
+                }
+                
+                // 2. Try to get from local database as fallback
+                android.util.Log.d("EventDetailViewModel", "Event not found in Firestore, trying local database...")
+                // Note: This would require adding a method to EventRepository to get event by ID
+                
+                // 3. Create a fallback event if everything else fails
+                android.util.Log.e("EventDetailViewModel", "Failed to load event from all sources, creating fallback for ID: $eventId")
+                val fallbackEvent = Event(
+                    id = eventId,
+                    name = "Event $eventId",
+                    startTime = System.currentTimeMillis(),
+                    endTime = System.currentTimeMillis() + 3600000,
+                    latitude = 0.0,
+                    longitude = 0.0,
+                    geofenceRadius = 100f,
+                    isActive = true,
+                    signInStartOffset = 15,
+                    signInEndOffset = 15,
+                    signOutStartOffset = 15,
+                    signOutEndOffset = 15
                 )
+                
+                // Try to save this fallback event to prevent future issues
+                try {
+                    firestoreService.createEvent(fallbackEvent)
+                    android.util.Log.d("EventDetailViewModel", "Created and saved fallback event")
+                    
+                    _state.value = _state.value.copy(
+                        event = fallbackEvent,
+                        isLoading = false,
+                        message = "Using placeholder event data. Original event might be missing."
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("EventDetailViewModel", "Failed to save fallback event: ${e.message}", e)
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        error = "Event not found and could not create fallback. Please try again or contact support."
+                    )
+                }
             } catch (e: Exception) {
+                android.util.Log.e("EventDetailViewModel", "Error loading event details for ID '$eventId': ${e.message}", e)
                 _state.value = _state.value.copy(
                     isLoading = false,
-                    error = "Failed to load event: ${e.message}"
+                    error = "Failed to load event: ${e.message ?: "Unknown error"}"
                 )
             }
         }

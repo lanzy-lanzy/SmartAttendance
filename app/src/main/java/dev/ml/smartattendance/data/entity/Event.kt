@@ -7,17 +7,17 @@ import dev.ml.smartattendance.domain.model.TimeWindow
 
 @Entity(tableName = "events")
 data class Event(
-    @PrimaryKey val id: String,
-    val name: String,
-    val startTime: Long,
-    val endTime: Long,
-    val latitude: Double,
-    val longitude: Double,
-    val geofenceRadius: Float,
-    val signInStartOffset: Long,  // Minutes before event start
-    val signInEndOffset: Long,    // Minutes after event start
-    val signOutStartOffset: Long, // Minutes before event end
-    val signOutEndOffset: Long,   // Minutes after event end
+    @PrimaryKey val id: String = "",
+    val name: String = "",
+    val startTime: Long = 0L,
+    val endTime: Long = 0L,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val geofenceRadius: Float = 50f,
+    val signInStartOffset: Long = 30L,  // Minutes before event start
+    val signInEndOffset: Long = 15L,    // Minutes after event start
+    val signOutStartOffset: Long = 30L, // Minutes before event end
+    val signOutEndOffset: Long = 15L,   // Minutes after event end
     val isActive: Boolean = true
 ) {
     val location: LatLng

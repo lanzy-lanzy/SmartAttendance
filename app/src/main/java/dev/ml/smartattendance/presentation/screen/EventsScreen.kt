@@ -29,6 +29,7 @@ fun EventsScreen(
     onNavigateToProfile: () -> Unit = {},
     onNavigateToAttendanceMarking: (String) -> Unit = {},
     onNavigateToDashboard: () -> Unit = {},
+    onNavigateToEventDetail: (String) -> Unit = {},
     viewModel: AttendanceViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -38,16 +39,23 @@ fun EventsScreen(
         viewModel.loadCurrentEvents()
     }
     
+    // Refresh events when screen recomposes (e.g., when user returns after marking attendance)
+    LaunchedEffect(Unit) {
+        // Add a small delay to ensure we don't overwhelm the system
+        kotlinx.coroutines.delay(300)
+        viewModel.loadCurrentEvents()
+    }
+    
     Scaffold(
         topBar = {
             CleanTopAppBar(
                 title = "Events",
                 onNavigateBack = onNavigateBack,
                 actions = {
-                    IconButton(onClick = { /* TODO: Search/Filter */ }) {
+                    IconButton(onClick = { viewModel.loadCurrentEvents() }) {
                         Icon(
-                            Icons.Default.Search,
-                            contentDescription = "Search",
+                            Icons.Default.Refresh,
+                            contentDescription = "Refresh",
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -58,12 +66,15 @@ fun EventsScreen(
             ModernBottomNavigation(
                 currentRoute = "events",
                 userRole = UserRole.STUDENT,
-                onNavigate = { route ->
+                onNavigate = { route -> 
                     when (route) {
                         "dashboard" -> onNavigateToDashboard()
                         "attendance_history" -> onNavigateToAttendanceHistory()
                         "events" -> { /* Already here */ }
                         "profile" -> onNavigateToProfile()
+                        else -> {
+                            // Handle any other routes if needed
+                        }
                     }
                 }
             )
@@ -187,6 +198,10 @@ fun EventsScreen(
                             EventCard(
                                 event = event,
                                 onMarkAttendance = { onNavigateToAttendanceMarking(event.id) },
+                                onViewDetails = { 
+                                    android.util.Log.d("EventsScreen", "Navigating to event details for event ID: ${event.id}")
+                                    onNavigateToEventDetail(event.id) 
+                                },
                                 isLoading = state.isMarkingAttendance,
                                 isAttendanceMarked = state.markedEventIds.contains(event.id)
                             )
@@ -200,7 +215,20 @@ fun EventsScreen(
                     AlertCard(
                         message = error,
                         type = AlertType.Error
-                    )
+                    ) {
+                        viewModel.clearError()
+                    }
+                }
+                
+                // Success message
+                state.attendanceMessage?.let { message ->
+                    Spacer(modifier = Modifier.height(16.dp))
+                    AlertCard(
+                        message = message,
+                        type = AlertType.Success
+                    ) {
+                        viewModel.clearAttendanceMessage()
+                    }
                 }
             }
         }
@@ -249,6 +277,7 @@ fun EmptyEventsCard() {
 fun EventCard(
     event: Event,
     onMarkAttendance: () -> Unit,
+    onViewDetails: () -> Unit,
     isLoading: Boolean = false,
     isAttendanceMarked: Boolean = false
 ) {
@@ -356,56 +385,76 @@ fun EventCard(
                 fontWeight = FontWeight.Medium
             )
             
-            // Action Button
+            // Action Buttons
             Spacer(modifier = Modifier.height(16.dp))
-            
-            Button(
-                onClick = onMarkAttendance,
-                enabled = canMarkAttendance && !isLoading && !isAttendanceMarked,
+
+            // Row with two buttons
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isAttendanceMarked) 
-                        MaterialTheme.colorScheme.surfaceVariant 
-                    else 
-                        MaterialTheme.colorScheme.primary,
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
+                // View Details Button
+                OutlinedButton(
+                    onClick = { 
+                        android.util.Log.d("EventsScreen", "View Details clicked for event: ${event.id}")
+                        onViewDetails() 
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Processing...")
-                } else {
+                ) {
                     Icon(
-                        imageVector = if (isAttendanceMarked) 
-                            Icons.Default.CheckCircle 
-                        else 
-                            Icons.Default.Fingerprint,
+                        imageVector = Icons.Default.Visibility,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = when {
-                            isAttendanceMarked -> "Already Marked"
-                            !isEventActive -> "Event Ended"
-                            canMarkAttendance -> "Mark Attendance"
-                            currentTime < attendanceWindowStart -> {
-                                val minutesUntil = (attendanceWindowStart - currentTime) / (60 * 1000)
-                                "Available in ${minutesUntil}min"
-                            }
-                            currentTime > attendanceWindowEnd -> "Sign-in Window Closed"
-                            else -> "Mark Attendance" // Fallback to allow marking
-                        },
-                        color = if (isAttendanceMarked) 
-                            MaterialTheme.colorScheme.onSurfaceVariant 
-                        else 
-                            MaterialTheme.colorScheme.onPrimary
+                    Text("View Details")
+                }
+
+                // Mark Attendance Button
+                Button(
+                    onClick = onMarkAttendance,
+                    enabled = canMarkAttendance && !isLoading && !isAttendanceMarked,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isAttendanceMarked)
+                            MaterialTheme.colorScheme.surfaceVariant
+                        else
+                            MaterialTheme.colorScheme.primary,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (isAttendanceMarked)
+                                Icons.Default.CheckCircle
+                            else
+                                Icons.Default.Fingerprint,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = when {
+                                isAttendanceMarked -> "Marked"
+                                !isEventActive -> "Ended"
+                                canMarkAttendance -> "Mark"
+                                else -> "Mark"
+                            },
+                            color = if (isAttendanceMarked)
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            else
+                                MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
             }
         }
